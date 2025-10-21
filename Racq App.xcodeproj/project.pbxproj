@@ -45,16 +45,6 @@
 		D3DB037C2EA720EA00609238 /* Racq App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Racq App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D36103462EA72B7500846EF5 /* Exceptions for "Racq App" folder in "RacqWatch Watch App" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				WCMessage.swift,
-			);
-			target = D36103342EA729D600846EF5 /* RacqWatch Watch App */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D36103362EA729D600846EF5 /* RacqWatch Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -63,9 +53,6 @@
 		};
 		D3DB037E2EA720EA00609238 /* Racq App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				D36103462EA72B7500846EF5 /* Exceptions for "Racq App" folder in "RacqWatch Watch App" target */,
-			);
 			path = "Racq App";
 			sourceTree = "<group>";
 		};
@@ -188,7 +175,7 @@
 					};
 				};
 			};
-			buildConfigurationList = D3DB03772EA720EA00609238 /* Build configuration list for PBXProject "Racq App" */;
+			buildConfigurationList = D3DB03772EA720EA00609238 /* Build configuration list for PBXProject "Racq App copy" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -520,7 +507,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D3DB03772EA720EA00609238 /* Build configuration list for PBXProject "Racq App" */ = {
+		D3DB03772EA720EA00609238 /* Build configuration list for PBXProject "Racq App copy" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D3DB038A2EA720EB00609238 /* Debug */,
