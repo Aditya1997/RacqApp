@@ -25,7 +25,10 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
 
     // MARK: - Activation
     private func activate() {
-        guard WCSession.isSupported() else {
+        if WCSession.isSupported() {
+            print("Watch Connectivity Supported")
+        }
+        else {
             print("⚠️ WatchConnectivity not supported on this device.")
             return
         }
@@ -34,6 +37,7 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
         s.delegate = self
         s.activate()
         session = s
+        print("WCSession activated on iPhone.")
 
         // Immediate initial state check
         Task { @MainActor in

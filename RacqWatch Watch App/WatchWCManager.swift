@@ -16,6 +16,7 @@ final class WatchWCManager: NSObject, ObservableObject, WCSessionDelegate {
     private var session: WCSession?
 
     private override init() {
+      
         super.init()
         activate()
     }

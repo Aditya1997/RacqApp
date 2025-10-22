@@ -12,6 +12,11 @@ import CoreData
 struct Racq_AppApp: App {
     let persistenceController = PersistenceController.shared
 
+    init() {
+        // ✅ Force the WCSession manager to initialize immediately
+        _ = PhoneWCManager.shared
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -19,3 +24,5 @@ struct Racq_AppApp: App {
         }
     }
 }
+
+

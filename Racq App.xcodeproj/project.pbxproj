@@ -7,10 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D315606A2EA7394D00D77693 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D31560692EA7394D00D77693 /* CoreMotion.framework */; settings = {ATTRIBUTES = (Required, ); }; };
-		D315608C2EA7F30F00D77693 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D315608B2EA7F30F00D77693 /* WatchConnectivity.framework */; };
-		D315608E2EA7F41900D77693 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D315608D2EA7F41900D77693 /* WatchConnectivity.framework */; };
-		D361033F2EA729D700846EF5 /* RacqWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = D36103352EA729D600846EF5 /* RacqWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D30DBD5B2EA837C900385A48 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D31560692EA7394D00D77693 /* CoreMotion.framework */; };
+		D36077452EA84FE400CF9733 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D315608D2EA7F41900D77693 /* WatchConnectivity.framework */; };
+		D384C9F62EA91A3F001AFE57 /* RacqWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = D36103352EA729D600846EF5 /* RacqWatch Watch App.app */; };
+		D39B108F2EA84D860008299C /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D315608B2EA7F30F00D77693 /* WatchConnectivity.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -24,15 +24,24 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		D3DB03A12EA7218900609238 /* Embed Watch Content */ = {
+		D32238CB2EA8606000D7082D /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
+			buildActionMask = 8;
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
-				D361033F2EA729D700846EF5 /* RacqWatch Watch App.app in Embed Watch Content */,
+				D384C9F62EA91A3F001AFE57 /* RacqWatch Watch App.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+		D384C9F52EA91A00001AFE57 /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 7;
+			files = (
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -63,8 +72,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D315608C2EA7F30F00D77693 /* WatchConnectivity.framework in Frameworks */,
-				D315606A2EA7394D00D77693 /* CoreMotion.framework in Frameworks */,
+				D39B108F2EA84D860008299C /* WatchConnectivity.framework in Frameworks */,
+				D30DBD5B2EA837C900385A48 /* CoreMotion.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,7 +81,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D315608E2EA7F41900D77693 /* WatchConnectivity.framework in Frameworks */,
+				D36077452EA84FE400CF9733 /* WatchConnectivity.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -140,7 +149,8 @@
 				D3DB03782EA720EA00609238 /* Sources */,
 				D3DB03792EA720EA00609238 /* Frameworks */,
 				D3DB037A2EA720EA00609238 /* Resources */,
-				D3DB03A12EA7218900609238 /* Embed Watch Content */,
+				D32238CB2EA8606000D7082D /* Embed Watch Content */,
+				D384C9F52EA91A00001AFE57 /* CopyFiles */,
 			);
 			buildRules = (
 			);
@@ -175,7 +185,7 @@
 					};
 				};
 			};
-			buildConfigurationList = D3DB03772EA720EA00609238 /* Build configuration list for PBXProject "Racq App copy" */;
+			buildConfigurationList = D3DB03772EA720EA00609238 /* Build configuration list for PBXProject "Racq App" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -243,14 +253,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "RacqWatch Watch App/RacqWatch Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2.5;
 				DEVELOPMENT_TEAM = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = RacqWatch;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app reads your heart rate data to measure performance.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app writes workout data for tracking session activity.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Racq uses motion data to record sessions.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.briantsao.RacqApp;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -269,7 +281,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.6;
 			};
 			name = Debug;
 		};
@@ -278,14 +290,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "RacqWatch Watch App/RacqWatch Watch App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2.5;
 				DEVELOPMENT_TEAM = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = RacqWatch;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "This app reads your heart rate data to measure performance.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "This app writes workout data for tracking session activity.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Racq uses motion data to record sessions.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.briantsao.RacqApp;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -304,7 +318,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
-				WATCHOS_DEPLOYMENT_TARGET = 26.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.6;
 			};
 			name = Release;
 		};
@@ -434,11 +448,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Racq App/Racq App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2.5;
 				DEVELOPMENT_TEAM = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Racq-App-Info.plist";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Racq reads your heart rate to include in session logs.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Racq writes workout sessions you record.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Racq uses motion data to record sessions.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -467,11 +486,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Racq App/Racq App.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2.5;
 				DEVELOPMENT_TEAM = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Racq-App-Info.plist";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Racq reads your heart rate to include in session logs.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Racq writes workout sessions you record.";
+				INFOPLIST_KEY_NSMotionUsageDescription = "Racq uses motion data to record sessions.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -507,7 +531,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		D3DB03772EA720EA00609238 /* Build configuration list for PBXProject "Racq App copy" */ = {
+		D3DB03772EA720EA00609238 /* Build configuration list for PBXProject "Racq App" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D3DB038A2EA720EB00609238 /* Debug */,
