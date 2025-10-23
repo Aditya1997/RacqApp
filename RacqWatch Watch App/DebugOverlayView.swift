@@ -6,18 +6,24 @@
 import SwiftUI
 
 struct DebugOverlayView: View {
-    @ObservedObject private var motion = MotionManager.shared
+    @ObservedObject var motion = MotionManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text("📊 Debug Overlay")
                 .font(.system(size: 12, weight: .semibold))
+
             Text("Shots: \(motion.shotCount)")
                 .font(.system(size: 11))
+
+            // ✅ Correctly display magnitude
             Text(String(format: "Mag: %.2f", motion.lastMagnitude))
                 .font(.system(size: 11))
+
+            // ✅ Correctly display sensitivity
             Text(String(format: "Sens: %.2f", motion.motionSensitivity))
                 .font(.system(size: 11))
+
             Text(motion.isActive ? "Active ✅" : "Stopped ⛔️")
                 .font(.system(size: 11))
                 .foregroundColor(motion.isActive ? .green : .red)

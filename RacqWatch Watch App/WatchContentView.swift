@@ -7,96 +7,88 @@ import SwiftUI
 import Combine
 
 struct WatchContentView: View {
-    @ObservedObject private var motionManager = MotionManager.shared
-    @ObservedObject private var healthManager = HealthManager.shared
-    @ObservedObject private var watchWCManager = WatchWCManager.shared
+    @ObservedObject private var motion = MotionManager.shared
+    @ObservedObject private var wc = WatchWCManager.shared
 
-    @State private var isRecording = false
-    @State private var timerCount: TimeInterval = 0
-    @State private var timerCancellable: AnyCancellable?
-
-    private var formattedTime: String {
-        let hours = Int(timerCount) / 3600
-        let minutes = (Int(timerCount) % 3600) / 60
-        let seconds = Int(timerCount) % 60
-        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
-    }
+    @State private var elapsedTime: TimeInterval = 0
+    @State private var timer: Timer?
 
     var body: some View {
-        VStack(spacing: 10) {
-            // Timer
-            Text(formattedTime)
-                .font(.system(size: 28, weight: .bold, design: .monospaced))
+        VStack(spacing: 8) {
+            Text("🎾 Racq Tracker")
+                .font(.headline)
 
-            // Heart rate
-            HStack {
-                Image(systemName: "heart.fill")
+            if wc.isPhoneConnected {
+                Label("Connected", systemImage: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+            } else {
+                Label("Not Connected", systemImage: "xmark.circle.fill")
                     .foregroundColor(.red)
-                Text("\(Int(healthManager.heartRate)) bpm")
-                    .font(.system(size: 16, weight: .semibold))
             }
 
-            // Shots
-            HStack {
-                Text("🎾 Shots: \(motionManager.shotCount)")
-                    .font(.system(size: 16, weight: .semibold))
-            }
+            Divider()
 
-            // Start/Stop Button
-            Button(action: toggleRecording) {
-                Text(isRecording ? "Stop Recording" : "Start Recording")
-                    .frame(maxWidth: .infinity)
-                    .padding(8)
-                    .background(isRecording ? Color.red : Color.green)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-            }
-
-            // Connection status
-            HStack {
-                Image(systemName: watchWCManager.isReachable ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundColor(watchWCManager.isReachable ? .green : .orange)
-                Text(watchWCManager.isReachable ? "Connected to iPhone" : "Waiting for iPhone…")
+            VStack(spacing: 4) {
+                Text("Shots: \(motion.shotCount)")
+                    .font(.title)
+                    .bold()
+                Text("Time: \(formatTime(elapsedTime))")
                     .font(.footnote)
-                    .foregroundColor(.gray)
             }
+
+            Divider()
+
+            Button(action: {
+                if motion.isActive {
+                    stopSession()
+                } else {
+                    startSession()
+                }
+            }) {
+                Label(
+                    motion.isActive ? "Stop" : "Start",
+                    systemImage: motion.isActive ? "stop.circle" : "play.circle"
+                )
+                .frame(maxWidth: .infinity)
+            }
+            .tint(motion.isActive ? .red : .green)
+            .buttonStyle(.borderedProminent)
         }
         .padding()
-        .onAppear {
-            healthManager.requestAuthorization()
+        .onDisappear { stopTimer() }
+    }
+
+    // MARK: - Session Control
+    private func startSession() {
+        motion.startMotionUpdates()
+        SensorLogger.shared.startLogging()
+        startTimer()
+    }
+
+    private func stopSession() {
+        motion.stopMotionUpdates()
+        SensorLogger.shared.stopLoggingAndExport()
+        stopTimer()
+    }
+
+    // MARK: - Timer
+    private func startTimer() {
+        elapsedTime = 0
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            elapsedTime += 1
         }
     }
 
-    // MARK: - Recording Controls
-    private func toggleRecording() {
-        if isRecording {
-            stopRecording()
-        } else {
-            startRecording()
-        }
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
     }
 
-    private func startRecording() {
-        isRecording = true
-        timerCount = 0
-        motionManager.startMotionUpdates()
-        healthManager.startHeartRateUpdates()
-
-        timerCancellable = Timer.publish(every: 1, on: .main, in: .common)
-            .autoconnect()
-            .sink { _ in
-                timerCount += 1
-            }
-
-        print("🎬 Recording started.")
-    }
-
-    private func stopRecording() {
-        isRecording = false
-        motionManager.stopMotionUpdates()
-        healthManager.stopHeartRateUpdates()
-        timerCancellable?.cancel()
-        print("🛑 Recording stopped.")
+    private func formatTime(_ t: TimeInterval) -> String {
+        let mins = Int(t) / 60
+        let secs = Int(t) % 60
+        return String(format: "%02d:%02d", mins, secs)
     }
 }
 

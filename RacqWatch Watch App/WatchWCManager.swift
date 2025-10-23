@@ -11,66 +11,85 @@ import Combine
 final class WatchWCManager: NSObject, ObservableObject, WCSessionDelegate {
     static let shared = WatchWCManager()
 
-    @Published var isReachable = false
-    @Published var lastEvent: String = "Waiting…"
-    private var session: WCSession?
+    @Published var isPhoneConnected: Bool = false
+    @Published var lastMessage: String = ""
+    @Published var liveShotCount: Int = 0
+
+    private var pingTimer: Timer?
 
     private override init() {
-      
         super.init()
-        activate()
+        if WCSession.isSupported() {
+            WCSession.default.delegate = self
+            WCSession.default.activate()
+        }
+        startPingTimer()
     }
 
-    private func activate() {
-        guard WCSession.isSupported() else {
-            lastEvent = "WC not supported"
+    // MARK: - Send live shot updates
+    func sendShotCount(_ count: Int) {
+        guard WCSession.default.isReachable else { return }
+        WCSession.default.sendMessage(["shotCount": count], replyHandler: nil)
+        print("📤 Sent shot count: \(count)")
+    }
+
+    // MARK: - Send CSV to phone
+    func sendFileToPhone(_ fileURL: URL, duration: TimeInterval, totalShots: Int) {
+        guard WCSession.default.activationState == .activated else {
+            print("⚠️ WCSession not active")
             return
         }
-        let s = WCSession.default
-        s.delegate = self
-        s.activate()
-        session = s
-        print("⌚️ WCSession activated on Watch.")
+
+        let metadata: [String: Any] = [
+            "fileName": fileURL.lastPathComponent,
+            "shots": totalShots,
+            "duration": duration,
+            "date": Date().timeIntervalSince1970
+        ]
+
+        WCSession.default.transferFile(fileURL, metadata: metadata)
+        print("📤 Sent file to phone with metadata: \(metadata)")
     }
 
-    func sendMessage(_ payload: [String: Any]) {
-        guard let s = session, s.isReachable else {
-            print("📵 iPhone not reachable.")
+    // MARK: - Connection Ping
+    private func startPingTimer() {
+        pingTimer?.invalidate()
+        pingTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [weak self] _ in
+            self?.pingPhone()
+        }
+    }
+
+    private func pingPhone() {
+        guard WCSession.default.isReachable else {
+            isPhoneConnected = false
             return
         }
-        s.sendMessage(payload, replyHandler: nil) { error in
-            print("❌ Watch send error:", error.localizedDescription)
-        }
+
+        WCSession.default.sendMessage(["ping": "watchActive"], replyHandler: { _ in
+            self.isPhoneConnected = true
+        }, errorHandler: { _ in
+            self.isPhoneConnected = false
+        })
     }
 
-    // MARK: - File Sending
-    func sendFileToPhone(_ fileURL: URL) {
-        let session = WCSession.default
-
-        if session.isReachable {
-            session.transferFile(fileURL, metadata: ["type": "motionCSV"])
-            print("📤 File transfer started immediately:", fileURL.lastPathComponent)
-        } else {
-            print("📦 Queued file transfer — phone not reachable.")
-            session.transferFile(fileURL, metadata: ["type": "motionCSV"])
-        }
-    }
-
-    // MARK: - Delegates
-    nonisolated func session(_ session: WCSession,
-                             activationDidCompleteWith activationState: WCSessionActivationState,
-                             error: Error?) {
+    // MARK: - WCSessionDelegate
+    nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         if let error = error {
-            print("❌ Activation error:", error.localizedDescription)
+            print("❌ Activation failed: \(error.localizedDescription)")
         } else {
-            print("✅ Activation state:", activationState.rawValue)
+            print("✅ Watch session activated")
         }
     }
 
     nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
         Task { @MainActor in
-            self.isReachable = session.isReachable
-            print("🔄 Reachability changed:", session.isReachable)
+            self.isPhoneConnected = session.isReachable
+        }
+    }
+
+    nonisolated func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
+        if let reset = message["resetShots"] as? Bool, reset == true {
+            Task { @MainActor in self.liveShotCount = 0 }
         }
     }
 }

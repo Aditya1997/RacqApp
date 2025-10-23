@@ -8,84 +8,124 @@ import HealthKit
 import Combine
 
 @MainActor
-final class HealthManager: ObservableObject {
+final class HealthManager: NSObject, ObservableObject {
     static let shared = HealthManager()
+
+    @Published var heartRate: Double = 0
+    @Published var isWorkoutActive = false
+    @Published var workoutStartDate: Date?
+
     private let healthStore = HKHealthStore()
-    private var query: HKAnchoredObjectQuery?
+    private var session: HKWorkoutSession?
+    private var builder: HKLiveWorkoutBuilder?
+    private var hrQuery: HKAnchoredObjectQuery?
 
-    @Published var heartRate: Double = 0.0
-    private var heartRateLog: [(time: Date, bpm: Double)] = []
-
-    private init() {}
+    private override init() {
+        super.init()
+    }
 
     // MARK: - Authorization
-    func requestAuthorization() {
-        guard HKHealthStore.isHealthDataAvailable() else {
-            print("⚠️ Health data unavailable.")
-            return
-        }
-
+    func requestAuthorization() async {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        let typesToShare: Set = [HKObjectType.workoutType()]
         let typesToRead: Set = [HKQuantityType.quantityType(forIdentifier: .heartRate)!]
-        let typesToShare: Set = [HKQuantityType.workoutType()]
 
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
-            if success {
-                print("✅ HealthKit authorized.")
-            } else {
-                print("❌ HealthKit error:", error?.localizedDescription ?? "unknown")
-            }
+        do {
+            try await healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead)
+        } catch {
+            print("❌ Health authorization error: \(error)")
         }
     }
 
-    // MARK: - Heart Rate Monitoring
-    func startHeartRateUpdates() {
-        guard let type = HKObjectType.quantityType(forIdentifier: .heartRate) else { return }
+    // MARK: - Start Workout
+    func startWorkout() async {
+        if isWorkoutActive { return }
 
+        let config = HKWorkoutConfiguration()
+        config.activityType = .tennis
+        config.locationType = .outdoor
+
+        do {
+            session = try HKWorkoutSession(healthStore: healthStore, configuration: config)
+            builder = session?.associatedWorkoutBuilder()
+            session?.delegate = self
+            builder?.delegate = self
+            builder?.dataSource = HKLiveWorkoutDataSource(healthStore: healthStore, workoutConfiguration: config)
+
+            workoutStartDate = Date()
+            session?.startActivity(with: workoutStartDate!)
+            builder?.beginCollection(withStart: workoutStartDate!) { _, _ in }
+
+            startHeartRateStream()
+            isWorkoutActive = true
+            print("🏃‍♂️ Workout started")
+        } catch {
+            print("❌ Failed to start workout: \(error)")
+        }
+    }
+
+    // MARK: - Stop Workout
+    func stopWorkout() async {
+        guard isWorkoutActive else { return }
+
+        hrQuery.map { healthStore.stop($0) }
+        hrQuery = nil
+        builder?.endCollection(withEnd: Date()) { [weak self] _, _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.builder?.finishWorkout { _, _ in }
+            }
+        }
+
+        session?.end()
+        isWorkoutActive = false
+        print("🛑 Workout stopped")
+
+        // Export and send CSV via SensorLogger (for consistent data)
+        SensorLogger.shared.stopLoggingAndExport()
+    }
+
+    // MARK: - Heart Rate Stream
+    private func startHeartRateStream() {
+        let hrType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
         let predicate = HKQuery.predicateForSamples(withStart: Date(), end: nil, options: .strictStartDate)
 
-        query = HKAnchoredObjectQuery(
-            type: type,
-            predicate: predicate,
-            anchor: nil,
-            limit: HKObjectQueryNoLimit
-        ) { [weak self] _, samples, _, _, _ in
-            guard let self = self else { return }
-            Task { @MainActor in
-                self.process(samples)
-            }
+        hrQuery = HKAnchoredObjectQuery(type: hrType, predicate: predicate, anchor: nil, limit: HKObjectQueryNoLimit) { [weak self] _, samples, _, _, _ in
+            Task { @MainActor in self?.handleHeartRate(samples: samples) }
         }
 
-        query?.updateHandler = { [weak self] _, samples, _, _, _ in
-            guard let self = self else { return }
-            Task { @MainActor in
-                self.process(samples)
-            }
+        hrQuery?.updateHandler = { [weak self] _, samples, _, _, _ in
+            Task { @MainActor in self?.handleHeartRate(samples: samples) }
         }
 
-        if let query = query {
-            healthStore.execute(query)
-            print("❤️ Started heart rate updates.")
-        }
+        if let q = hrQuery { healthStore.execute(q) }
     }
 
-    func stopHeartRateUpdates() {
-        if let query = query {
-            healthStore.stop(query)
-            print("🛑 Stopped heart rate updates.")
-        }
-        query = nil
-    }
+    private func handleHeartRate(samples: [HKSample]?) {
+        guard let samples = samples as? [HKQuantitySample],
+              let last = samples.last else { return }
 
-    // MARK: - Handle heart rate samples safely on main thread
-    private func process(_ samples: [HKSample]?) {
-        guard let samples = samples as? [HKQuantitySample], let sample = samples.last else { return }
-
-        let bpm = sample.quantity.doubleValue(for: HKUnit(from: "count/min"))
+        let bpm = last.quantity.doubleValue(for: .init(from: "count/min"))
         heartRate = bpm
-        heartRateLog.append((time: Date(), bpm: bpm))
+        print("❤️ Heart Rate: \(Int(bpm)) BPM")
+    }
+}
+
+// MARK: - Delegates
+extension HealthManager: HKWorkoutSessionDelegate, HKLiveWorkoutBuilderDelegate {
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession,
+                                    didChangeTo toState: HKWorkoutSessionState,
+                                    from _: HKWorkoutSessionState,
+                                    date: Date) {
+        print("Workout state → \(toState.rawValue) at \(date)")
     }
 
-    func clearLogs() {
-        heartRateLog.removeAll()
+    nonisolated func workoutSession(_ workoutSession: HKWorkoutSession,
+                                    didFailWithError error: Error) {
+        print("Workout error: \(error)")
     }
+
+    nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {}
+    nonisolated func workoutBuilder(_ workoutBuilder: HKLiveWorkoutBuilder,
+                                    didCollectDataOf collectedTypes: Set<HKSampleType>) {}
 }

@@ -13,89 +13,113 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     static let shared = PhoneWCManager()
 
     @Published var isWatchConnected: Bool = false
-    @Published var lastFileName: String = ""
     @Published var receivedFiles: [URL] = []
+    @Published var lastFileName: String = "No files received"
+    @Published var completedSessions: [SessionSummary] = []
 
-    private var session: WCSession?
+    private var sessionNumber: Int = 0
+    private let session = WCSession.default
+
+    struct SessionSummary: Identifiable {
+        let id = UUID()
+        let date: Date
+        let duration: TimeInterval
+        let shots: Int
+        let fileURL: URL
+    }
 
     private override init() {
         super.init()
-        activate()
-    }
-
-    // MARK: - Activation
-    private func activate() {
         if WCSession.isSupported() {
-            print("Watch Connectivity Supported")
+            session.delegate = self
+            session.activate()
         }
-        else {
-            print("⚠️ WatchConnectivity not supported on this device.")
-            return
-        }
-
-        let s = WCSession.default
-        s.delegate = self
-        s.activate()
-        session = s
-        print("WCSession activated on iPhone.")
-
-        // Immediate initial state check
-        Task { @MainActor in
-            self.isWatchConnected = s.isPaired && s.isWatchAppInstalled
-            print("📱 Initial WC state -> Watch connected:", self.isWatchConnected)
-        }
-
-        print("📱 WCSession activated on iPhone.")
     }
 
-    // MARK: - WCSession Delegate Methods
-    nonisolated func session(_ session: WCSession,
-                             activationDidCompleteWith activationState: WCSessionActivationState,
-                             error: Error?) {
+    // MARK: - WCSession Delegate
+    nonisolated func session(
+        _ session: WCSession,
+        activationDidCompleteWith activationState: WCSessionActivationState,
+        error: Error?
+    ) {
         if let error = error {
-            print("❌ Activation error:", error.localizedDescription)
+            print("❌ WCSession activation failed: \(error.localizedDescription)")
         } else {
-            print("✅ WCSession activation state:", activationState.rawValue)
+            print("✅ iPhone WCSession activated: \(activationState.rawValue)")
+        }
+
+        Task { @MainActor in
+            self.isWatchConnected = session.isPaired && session.isWatchAppInstalled
         }
     }
 
-    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {
-        print("⚙️ sessionDidBecomeInactive()")
-    }
-
+    nonisolated func sessionDidBecomeInactive(_ session: WCSession) {}
     nonisolated func sessionDidDeactivate(_ session: WCSession) {
-        print("⚙️ sessionDidDeactivate() → reactivating")
-        WCSession.default.activate()
+        Task { @MainActor in self.isWatchConnected = false }
     }
 
     nonisolated func sessionWatchStateDidChange(_ session: WCSession) {
         Task { @MainActor in
             self.isWatchConnected = session.isPaired && session.isWatchAppInstalled
-            print("🔄 Watch state changed:", self.isWatchConnected)
+            print("⌚️ Watch connection updated → \(self.isWatchConnected)")
         }
     }
 
-    nonisolated func sessionReachabilityDidChange(_ session: WCSession) {
-        Task { @MainActor in
-            self.isWatchConnected = session.isReachable
-            print("📶 Reachability changed:", session.isReachable)
-        }
-    }
-
-    // MARK: - File Transfer Handling
+    // MARK: - File Reception
     nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
-        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(file.fileURL.lastPathComponent)
-
-        do {
-            try? FileManager.default.removeItem(at: destination)
-            try FileManager.default.copyItem(at: file.fileURL, to: destination)
-            Task { @MainActor in
-                self.receivedFiles.append(destination)
-                self.lastFileName = destination.lastPathComponent
-                print("📥 Received file:", destination.lastPathComponent)
-            }
-        } catch {
-            print("❌ Error saving received file:", error.localizedDescription)
+        Task { @MainActor in
+            handleReceivedFile(file)
         }
+    }
+
+    private func handleReceivedFile(_ file: WCSessionFile) {
+        let fileManager = FileManager.default
+        let docsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+
+        sessionNumber += 1
+
+        // ✅ Match keys from Watch metadata
+        let duration = Double(file.metadata?["duration"] as? String ?? "0") ?? 0
+        let totalShots = Int(file.metadata?["shots"] as? String ?? "0") ?? 0
+        let sessionNum = file.metadata?["sessionNumber"] as? String ?? "\(sessionNumber)"
+
+        // ✅ Clean filename
+        let formattedDate = Date().formatted(date: .abbreviated, time: .standard)
+        let newFileName = "\(formattedDate) - Session \(sessionNum).csv"
+        let destination = docsDir.appendingPathComponent(newFileName)
+
+        // Save CSV file
+        do {
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.copyItem(at: file.fileURL, to: destination)
+
+            let summary = SessionSummary(
+                date: Date(),
+                duration: duration,
+                shots: totalShots,
+                fileURL: destination
+            )
+
+            receivedFiles.append(destination)
+            lastFileName = destination.lastPathComponent
+            completedSessions.append(summary)
+
+            print("✅ Received and saved CSV: \(destination.lastPathComponent)")
+            print("📊 Shots: \(totalShots), Duration: \(duration)s")
+        } catch {
+            print("❌ Failed to save received CSV: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - File Sharing Helper
+    func shareFile(_ fileURL: URL, from controller: UIViewController? = nil) {
+        let activityVC = UIActivityViewController(activityItems: [fileURL], applicationActivities: nil)
+        let presentingVC = controller ?? UIApplication.shared.connectedScenes
+            .compactMap { ($0 as? UIWindowScene)?.windows.first?.rootViewController }
+            .first
+
+        presentingVC?.present(activityVC, animated: true)
     }
 }
