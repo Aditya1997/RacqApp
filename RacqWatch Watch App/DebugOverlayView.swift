@@ -6,31 +6,43 @@
 import SwiftUI
 
 struct DebugOverlayView: View {
-    @ObservedObject var motion = MotionManager.shared
+    @ObservedObject private var motionManager = MotionManager.shared
+    @State private var showDetails = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("📊 Debug Overlay")
-                .font(.system(size: 12, weight: .semibold))
+        VStack(spacing: 8) {
+            Button {
+                showDetails.toggle()
+            } label: {
+                Text(showDetails ? "Hide Debug" : "Show Debug")
+                    .font(.caption)
+                    .padding(6)
+                    .background(Color.gray.opacity(0.2))
+                    .cornerRadius(8)
+            }
 
-            Text("Shots: \(motion.shotCount)")
-                .font(.system(size: 11))
+            if showDetails {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Debug Info")
+                        .font(.headline)
 
-            // ✅ Correctly display magnitude
-            Text(String(format: "Mag: %.2f", motion.lastMagnitude))
-                .font(.system(size: 11))
+                    Text("Shots: \(motionManager.shotCount)")
+                    Text(String(format: "Magnitude: %.2f", motionManager.lastMagnitude))
+                    Text("Sensitivity: \(motionManager.motionSensitivity, specifier: "%.2f")")
+                    Text("Active: \(motionManager.isActive ? "Yes" : "No")")
 
-            // ✅ Correctly display sensitivity
-            Text(String(format: "Sens: %.2f", motion.motionSensitivity))
-                .font(.system(size: 11))
-
-            Text(motion.isActive ? "Active ✅" : "Stopped ⛔️")
-                .font(.system(size: 11))
-                .foregroundColor(motion.isActive ? .green : .red)
+                    Button("Reset Shots") {
+                        motionManager.shotCount = 0
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                }
+                .padding(8)
+                .background(Color.black.opacity(0.1))
+                .cornerRadius(8)
+            }
         }
         .padding(6)
-        .background(Color.black.opacity(0.3))
-        .cornerRadius(8)
     }
 }
 

@@ -4,94 +4,121 @@
 //
 
 import SwiftUI
-import Combine
 
 struct WatchContentView: View {
-    @ObservedObject private var motion = MotionManager.shared
-    @ObservedObject private var wc = WatchWCManager.shared
+    @ObservedObject var motionManager = MotionManager.shared
+    @ObservedObject var healthManager = HealthManager.shared
 
-    @State private var elapsedTime: TimeInterval = 0
+    @State private var startTime: Date?
+    @State private var elapsedTime: TimeInterval = 0.0
     @State private var timer: Timer?
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text("🎾 Racq Tracker")
-                .font(.headline)
+        GeometryReader { g in
+            VStack(spacing: g.size.height * 0.04) {
 
-            if wc.isPhoneConnected {
-                Label("Connected", systemImage: "checkmark.circle.fill")
+                // MARK: - Stopwatch (top, small)
+                Text(formatTime(elapsedTime))
+                    .font(.system(size: g.size.width * 0.10, weight: .medium, design: .monospaced))
                     .foregroundColor(.green)
-            } else {
-                Label("Not Connected", systemImage: "xmark.circle.fill")
-                    .foregroundColor(.red)
-            }
+                    .onAppear {
+                        if motionManager.isActive { startStopwatch() }
+                    }
 
-            Divider()
+                // MARK: - Shots (main focus)
+                Text("Shots: \(motionManager.shotCount)")
+                    .font(.system(size: g.size.width * 0.20, weight: .bold))
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
 
-            VStack(spacing: 4) {
-                Text("Shots: \(motion.shotCount)")
-                    .font(.title)
-                    .bold()
-                Text("Time: \(formatTime(elapsedTime))")
-                    .font(.footnote)
-            }
+                // MARK: - Heart Rate (below shots)
+                Text(heartRateText())
+                    .font(.system(size: g.size.width * 0.11, weight: .regular))
+                    .foregroundColor(healthManager.heartRate > 0 ? .red : .gray)
+                    .animation(.easeInOut(duration: 0.3), value: healthManager.heartRate)
 
-            Divider()
+                // MARK: - Status
+                Text(motionManager.isActive ? "Tracking…" : "Ready")
+                    .font(.system(size: g.size.width * 0.10, weight: .regular))
+                    .foregroundColor(motionManager.isActive ? .green : .gray)
+                    .animation(.easeInOut, value: motionManager.isActive)
 
-            Button(action: {
-                if motion.isActive {
-                    stopSession()
-                } else {
-                    startSession()
+                Spacer()
+
+                // MARK: - Start/Stop Button (smaller, static)
+                Button(action: toggleSession) {
+                    Text(motionManager.isActive ? "Stop" : "Start")
+                        .font(.system(size: g.size.width * 0.14, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, g.size.height * 0.09)
+                        .background(motionManager.isActive ? Color.red : Color.blue)
+                        .foregroundColor(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
-            }) {
-                Label(
-                    motion.isActive ? "Stop" : "Start",
-                    systemImage: motion.isActive ? "stop.circle" : "play.circle"
-                )
-                .frame(maxWidth: .infinity)
+                .buttonStyle(.plain)
+                .padding(.horizontal)
+
+                Spacer(minLength: g.size.height * 0.02)
             }
-            .tint(motion.isActive ? .red : .green)
-            .buttonStyle(.borderedProminent)
+            .frame(width: g.size.width, height: g.size.height)
+            .padding()
+            .background(Color.black.edgesIgnoringSafeArea(.all))
         }
-        .padding()
-        .onDisappear { stopTimer() }
+        .onAppear {
+            healthManager.requestAuthorization()
+        }
     }
 
-    // MARK: - Session Control
-    private func startSession() {
-        motion.startMotionUpdates()
-        SensorLogger.shared.startLogging()
-        startTimer()
-    }
-
-    private func stopSession() {
-        motion.stopMotionUpdates()
-        SensorLogger.shared.stopLoggingAndExport()
-        stopTimer()
-    }
-
-    // MARK: - Timer
-    private func startTimer() {
-        elapsedTime = 0
+    // MARK: - Stopwatch
+    private func startStopwatch() {
+        startTime = Date()
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            elapsedTime += 1
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            if let start = startTime {
+                elapsedTime = Date().timeIntervalSince(start)
+            }
         }
     }
 
-    private func stopTimer() {
+    private func stopStopwatch() {
         timer?.invalidate()
         timer = nil
     }
 
-    private func formatTime(_ t: TimeInterval) -> String {
-        let mins = Int(t) / 60
-        let secs = Int(t) % 60
-        return String(format: "%02d:%02d", mins, secs)
+    private func resetStopwatch() {
+        timer?.invalidate()
+        timer = nil
+        elapsedTime = 0.0
+        startTime = Date()
+    }
+
+    // MARK: - Actions
+    private func toggleSession() {
+        if motionManager.isActive {
+            motionManager.stopMotionUpdates()
+            stopStopwatch()
+            healthManager.stopHeartRateUpdates()
+        } else {
+            motionManager.startMotionUpdates()
+            resetStopwatch()
+            startStopwatch()
+            healthManager.startHeartRateUpdates()
+        }
+    }
+
+    private func heartRateText() -> String {
+        let bpm = Int(healthManager.heartRate)
+        return bpm > 0 ? "\(bpm) BPM ❤️" : "-- BPM ❤️"
+    }
+
+    private func formatTime(_ interval: TimeInterval) -> String {
+        let minutes = Int(interval) / 60
+        let seconds = Int(interval) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 }
 
 #Preview {
     WatchContentView()
+        .previewDevice("Apple Watch SE (44mm)")
 }

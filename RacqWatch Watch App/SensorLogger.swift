@@ -1,75 +1,36 @@
-//
-//  SensorLogger.swift
-//  RacqWatch Watch App
-//
-
 import Foundation
-import CoreMotion
 import Combine
-import WatchConnectivity
 
 @MainActor
 final class SensorLogger: ObservableObject {
     static let shared = SensorLogger()
-    private let motion = MotionManager.shared
-    private let wc = WatchWCManager.shared
-
-    private var startTime: Date?
-    private var endTime: Date?
-    private var sessionNumber: Int = 0
-
-    // ✅ FIX: no 'override' here
+    private let motionManager = MotionManager.shared
+    @Published var logEntries: [String] = []
+    @Published var isLogging: Bool = false
+    private var timer: Timer?
     private init() {}
 
-    // MARK: - Start Logging
     func startLogging() {
-        guard !motion.isActive else { return }
-        startTime = Date()
-        sessionNumber += 1
-        print("📈 Starting Sensor Logger - Session #\(sessionNumber)")
-        motion.startMotionUpdates()
+        guard !isLogging else { return }
+        isLogging = true
+        logEntries.removeAll()
+        motionManager.startMotionUpdates()   // ✅ Correct method
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.appendLogEntry()
+        }
     }
 
-    // MARK: - Stop Logging & Export
-    func stopLoggingAndExport() {
-        guard motion.isActive else { return }
-        motion.stopMotionUpdates()
-        endTime = Date()
+    func stopLogging() {
+        guard isLogging else { return }
+        isLogging = false
+        timer?.invalidate()
+        timer = nil
+        motionManager.stopMotionUpdates()    // ✅ Correct method
+    }
 
-        // Calculate duration
-        let duration = endTime?.timeIntervalSince(startTime ?? Date()) ?? 0
-        let totalShots = motion.shotCount
-
-        // Export CSV
-        if let fileURL = motion.exportCSV() {
-            let formattedDate = Date().formatted(date: .abbreviated, time: .standard)
-            let sessionFileName = "\(formattedDate) - Session \(sessionNumber).csv"
-            let destination = FileManager.default.temporaryDirectory.appendingPathComponent(sessionFileName)
-
-            do {
-                try FileManager.default.moveItem(at: fileURL, to: destination)
-                print("✅ CSV renamed to: \(destination.lastPathComponent)")
-
-                // Send to iPhone
-                if WCSession.default.isReachable {
-                    WCSession.default.transferFile(destination, metadata: [
-                        "sessionNumber": "\(sessionNumber)",
-                        "duration": "\(Int(duration))",
-                        "totalShots": "\(totalShots)"
-                    ])
-                    print("📤 CSV sent to iPhone for session \(sessionNumber)")
-                } else {
-                    print("⚠️ iPhone not reachable, file saved locally")
-                }
-
-            } catch {
-                print("❌ Failed to rename or send CSV: \(error)")
-            }
-        } else {
-            print("⚠️ No CSV file available to export")
-        }
-
-        startTime = nil
-        endTime = nil
+    private func appendLogEntry() {
+        let entry = "Shots: \(motionManager.shotCount), Magnitude: \(String(format: "%.2f", motionManager.lastMagnitude))"
+        logEntries.append(entry)
+        print("📄 \(entry)")
     }
 }
