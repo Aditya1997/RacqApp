@@ -18,7 +18,7 @@ struct WatchContentView: View {
             VStack(spacing: g.size.height * 0.04) {
 
                 // MARK: - Stopwatch (top, small)
-                Text(formatTime(elapsedTime))
+                Text(formatTime(elapsedTime))	
                     .font(.system(size: g.size.width * 0.10, weight: .medium, design: .monospaced))
                     .foregroundColor(.green)
                     .onAppear {
@@ -31,6 +31,18 @@ struct WatchContentView: View {
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
 
+                // 🟢 NEW: Forehand / Backhand counters
+                HStack(spacing: g.size.width * 0.1) {
+                    VStack {
+                        Text("FH")
+                            .font(.system(size: g.size.width * 0.08, weight: .semibold))
+                            .foregroundColor(.yellow)
+                        Text("\(motionManager.forehandCount)")
+                            .font(.system(size: g.size.width * 0.10, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+                                    
                 // MARK: - Heart Rate (below shots)
                 Text(heartRateText())
                     .font(.system(size: g.size.width * 0.11, weight: .regular))

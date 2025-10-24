@@ -39,7 +39,10 @@ struct ContentView: View {
                         shots: wc.summaryShotCount,
                         durationSec: wc.summaryDurationSec,
                         heartRate: wc.summaryHeartRate,
-                        csvURL: wc.csvURL
+                        csvURL: wc.csvURL,
+                        // 🟢 NEW:
+                        forehandCount: wc.forehandCount,
+                        backhandCount: wc.backhandCount
                     )
                 }
 
@@ -57,6 +60,9 @@ private struct SummaryCard: View {
     let durationSec: Int
     let heartRate: Double
     let csvURL: URL?
+    // 🟢 NEW:
+    let forehandCount: Int
+    let backhandCount: Int
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -71,6 +77,15 @@ private struct SummaryCard: View {
                 stat(title: "Heart", value: "\(Int(heartRate)) BPM")
             }
 
+            // 🟢 NEW: Add FH/BH row
+           HStack {
+               stat(title: "Forehands", value: "\(forehandCount)")
+                   .foregroundColor(.yellow)
+               Spacer()
+               stat(title: "Backhands", value: "\(backhandCount)")
+                   .foregroundColor(.cyan)
+           }
+            
             if let url = csvURL {
                 Button {
                     share(url)
