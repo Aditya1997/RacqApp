@@ -41,8 +41,8 @@ struct ContentView: View {
                         heartRate: wc.summaryHeartRate,
                         csvURL: wc.csvURL,
                         // 🟢 NEW:
-                        forehandCount: wc.forehandCount,
-                        backhandCount: wc.backhandCount
+                        forehandCount: wc.summaryforehandCount,
+                        backhandCount: wc.summarybackhandCount
                     )
                 }
 

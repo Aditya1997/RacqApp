@@ -18,6 +18,8 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var summaryDurationSec: Int = 0
     @Published var summaryHeartRate: Double = 0
     @Published var summaryTimestampISO: String = ""
+    @Published var summaryforehandCount: Int = 0
+    @Published var summarybackhandCount: Int = 0
 
     // csv file received from watch
     @Published var csvURL: URL?
