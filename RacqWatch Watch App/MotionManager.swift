@@ -2,6 +2,7 @@
 //  MotionManager.swift
 //  RacqWatch Watch App
 //
+// 10/28/2025 Update to modify classification structure to add new variables, rotational direction instead of facingForward/pitch only, smoothing and cooldown handling
 
 import Foundation
 import CoreMotion
@@ -24,18 +25,28 @@ final class MotionManager: ObservableObject {
     @Published var hapticsEnabled: Bool = true
     @Published var isActive: Bool = false
 
-    // 🟢 NEW: Separate counters for forehand / backhand
+    // 🟢 UPDATED: Separate counters and state tracking
     @Published var forehandCount: Int = 0
     @Published var backhandCount: Int = 0
+    @Published var lastGyroZ: Double = 0.0
+    @Published var lastYaw: Double = 0.0
+    @Published var lastPitch: Double = 0.0
+    @Published var lastRoll: Double = 0.0
+    @Published var lastSwingType: String = "None"
     
     // Peak detection
     private var isSwinging = false
     private var lastShotTime: Date = .distantPast
-    private let shotCooldown: TimeInterval = 0.12
+    private let shotCooldown: TimeInterval = 0.2
 
     // Duration tracking
     private var sessionStart: Date?
 
+    // 🟢 UPDATED: Smoothing buffer
+    private var magnitudeBuffer: [Double] = []
+    private let bufferSize = 5
+    
+    
     private init() {
         WatchWCManager.shared.activateSession()
     }
@@ -54,10 +65,11 @@ final class MotionManager: ObservableObject {
         let roll: Double
         let pitch: Double
         let yaw: Double
+        // 🟢 UPDATED: keep for logging, not used in classification
         let facingForward: Bool
         let wrist: String
-        // 🟢 NEW: stroke classification
         let isForehand: Bool
+        let isBackhand: Bool // 🟢 NEW
     }
 
     // MARK: - Start
@@ -132,59 +144,80 @@ final class MotionManager: ObservableObject {
         let pitch = attitude.pitch
         let yaw = attitude.yaw
 
-        // Determine whether the watch face is forward or backward
+        // 🟢 UPDATED: Keep original facingForward for CSV compatibility
         let facingForward = abs(pitch) < .pi / 4
+
+        // Determine wrist side OVERRIDDEN FOR NOW
+        // let wristLoc = WKInterfaceDevice.current().wristLocation
+        // let isLeftWrist = wristLoc == .left
+        // let wristSide = isLeftWrist ? "Left Wrist" : "Right Wrist"
+
+        // ✅ Override: always assume right wrist
+        let isLeftWrist = false        // Force right wrist assumption
+        let wristSide = "Right Wrist"        // Determine rotation
         
-        // 🟢 Determine forehand/backhand classification
-        let isForehand = !facingForward
+        let yawDeg = attitude.yaw * 180.0 / .pi
+        let gyroZDeg = gyro.z * 180.0 / .pi
 
-        // Get which wrist the watch is on
-        let wristLoc = WKInterfaceDevice.current().wristLocation
-        let wristSide = wristLoc == .left ? "Left Wrist" : "Right Wrist"
+        // Flip signs if on left wrist 🟢 NEW
+        let effectiveYaw = isLeftWrist ? -yawDeg : yawDeg
+        let effectiveGyroZ = isLeftWrist ? -gyroZDeg : gyroZDeg
 
-        // Magnitude and swing detection
+        // Classify based on effective rotation
+        let isForehand = (effectiveYaw > 0 && effectiveGyroZ > 0)
+        let isBackhand = (effectiveYaw < 0 && effectiveGyroZ < 0)
+        
+        // 🟢 UPDATED: Apply smoothing filter to magnitude
         let magnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
-        lastMagnitude = magnitude
+        magnitudeBuffer.append(magnitude)
+        if magnitudeBuffer.count > bufferSize { magnitudeBuffer.removeFirst() }
+        let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
+
+        lastMagnitude = smoothedMagnitude
+        lastGyroZ = gyro.z
+        lastYaw = yaw
+        lastPitch = pitch
+        lastRoll = roll
+        lastSwingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
 
         let now = Date()
         let gap = now.timeIntervalSince(lastShotTime)
 
-        if magnitude > motionSensitivity {
+        if smoothedMagnitude > motionSensitivity {
             if !isSwinging && gap > shotCooldown {
                 shotCount += 1
                 lastShotTime = now
                 isSwinging = true
-                // 🟢 Increment appropriate swing type counter
+                // 🟢 UPDATED: New classification logic
                 if isForehand {
                     forehandCount += 1
-                } else {
+                } else if isBackhand {
                     backhandCount += 1
                 }
-                
+
                 if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
             }
-        } else if isSwinging && magnitude < (motionSensitivity * 0.7) {
+        } else if isSwinging && smoothedMagnitude < (motionSensitivity * 0.7) {
             isSwinging = false
         }
 
-        // Append data with full orientation info
+        // 🟢 UPDATED: Log with new classification
         let record = MotionData(
             timestamp: now,
-            magnitude: magnitude,
+            magnitude: smoothedMagnitude,
             accX: acc.x, accY: acc.y, accZ: acc.z,
             gyroX: gyro.x, gyroY: gyro.y, gyroZ: gyro.z,
             heartRate: HealthManager.shared.heartRate,
-            roll: roll,
-            pitch: pitch,
-            yaw: yaw,
+            roll: roll, pitch: pitch, yaw: yaw,
             facingForward: facingForward,
             wrist: wristSide,
-            isForehand: isForehand // 🟢 NEW field
+            isForehand: isForehand,
+            isBackhand: isBackhand
         )
         dataLog.append(record)
 
         // Optional debug print
-        print("🧭 \(wristSide) | Facing: \(facingForward ? "Forward" : "Backward") | Roll: \(String(format: "%.2f", roll)) | Pitch: \(String(format: "%.2f", pitch)) | Yaw: \(String(format: "%.2f", yaw))")
+        print("🎾 \(wristSide) | \(lastSwingType) | GyroZ: \(String(format: "%.2f", gyroZDeg)) | Yaw: \(String(format: "%.2f", yawDeg)) | Mag: \(String(format: "%.2f", smoothedMagnitude))")
     }
 
     // MARK: - CSV Export (includes new orientation columns)
@@ -192,7 +225,7 @@ final class MotionManager: ObservableObject {
         let fileName = "Session_\(Int(Date().timeIntervalSince1970)).csv"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
 
-        var csv = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,roll,pitch,yaw,facingForward,wrist\n"
+        var csv = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,roll,pitch,yaw,facingForward,wrist,isForehand,isBackhand\n" // 🟢 UPDATED header
 
         for e in dataLog {
             csv.append(
@@ -203,10 +236,12 @@ final class MotionManager: ObservableObject {
                 + "\(e.heartRate ?? 0),"
                 + "\(e.roll),\(e.pitch),\(e.yaw),"
                 + "\(e.facingForward),"
-                + "\(e.wrist)\n"
-                + "\(e.isForehand)\n" // 🟢 New column	
+                + "\(e.wrist),"
+                + "\(e.isForehand),"
+                + "\(e.isBackhand)\n"
             )
         }
+
 
         do {
             try csv.write(to: url, atomically: true, encoding: .utf8)
