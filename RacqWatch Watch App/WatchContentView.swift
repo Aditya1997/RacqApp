@@ -2,6 +2,7 @@
 //  WatchContentView.swift
 //  RacqWatch Watch App
 //
+//  Updated 10/30 to correct watch screen size
 
 import SwiftUI
 
@@ -14,67 +15,74 @@ struct WatchContentView: View {
     @State private var timer: Timer?
 
     var body: some View {
-        GeometryReader { g in
-            VStack(spacing: g.size.height * 0.04) {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let height = geo.size.height
+            let scale = min(width / 200, 1.0) // scales nicely for 41–49mm watches
 
-                // MARK: - Stopwatch (top, small)
-                Text(formatTime(elapsedTime))	
-                    .font(.system(size: g.size.width * 0.10, weight: .medium, design: .monospaced))
+            VStack(spacing: height * 0.02) {
+
+                // MARK: - Stopwatch
+                Text(formatTime(elapsedTime))
+                    .font(.system(size: 18 * scale, weight: .medium, design: .monospaced))
                     .foregroundColor(.green)
-                    .onAppear {
-                        if motionManager.isActive { startStopwatch() }
-                    }
+                    .padding(.top, height * 0.02)
 
-                // MARK: - Shots (main focus)
+                // MARK: - Shots Count
                 Text("Shots: \(motionManager.shotCount)")
-                    .font(.system(size: g.size.width * 0.20, weight: .bold))
+                    .font(.system(size: 28 * scale, weight: .bold))
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
 
-                // 🟢 NEW: Forehand / Backhand counters
-                HStack(spacing: g.size.width * 0.1) {
+                // MARK: - Forehand / Backhand
+                HStack(spacing: width * 0.1) {
                     VStack {
                         Text("FH")
-                            .font(.system(size: g.size.width * 0.08, weight: .semibold))
+                            .font(.system(size: 14 * scale, weight: .semibold))
                             .foregroundColor(.yellow)
                         Text("\(motionManager.forehandCount)")
-                            .font(.system(size: g.size.width * 0.10, weight: .bold))
+                            .font(.system(size: 16 * scale, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    VStack {
+                        Text("BH")
+                            .font(.system(size: 14 * scale, weight: .semibold))
+                            .foregroundColor(.cyan)
+                        Text("\(motionManager.backhandCount)")
+                            .font(.system(size: 16 * scale, weight: .bold))
                             .foregroundColor(.white)
                     }
                 }
-                                    
-                // MARK: - Heart Rate (below shots)
+
+                // MARK: - Heart Rate
                 Text(heartRateText())
-                    .font(.system(size: g.size.width * 0.11, weight: .regular))
+                    .font(.system(size: 14 * scale, weight: .regular))
                     .foregroundColor(healthManager.heartRate > 0 ? .red : .gray)
-                    .animation(.easeInOut(duration: 0.3), value: healthManager.heartRate)
 
                 // MARK: - Status
                 Text(motionManager.isActive ? "Tracking…" : "Ready")
-                    .font(.system(size: g.size.width * 0.10, weight: .regular))
+                    .font(.system(size: 14 * scale, weight: .medium))
                     .foregroundColor(motionManager.isActive ? .green : .gray)
-                    .animation(.easeInOut, value: motionManager.isActive)
 
                 Spacer()
 
-                // MARK: - Start/Stop Button (smaller, static)
+                // MARK: - Start/Stop Button
                 Button(action: toggleSession) {
                     Text(motionManager.isActive ? "Stop" : "Start")
-                        .font(.system(size: g.size.width * 0.14, weight: .bold))
+                        .font(.system(size: 18 * scale, weight: .bold))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, g.size.height * 0.09)
+                        .padding(.vertical, height * 0.06)
                         .background(motionManager.isActive ? Color.red : Color.blue)
                         .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .padding(.horizontal)
+                .padding(.horizontal, 8)
 
-                Spacer(minLength: g.size.height * 0.02)
+                Spacer(minLength: height * 0.01)
             }
-            .frame(width: g.size.width, height: g.size.height)
-            .padding()
-            .background(Color.black.edgesIgnoringSafeArea(.all))
+            .frame(width: width, height: height)
+            .background(Color.black.ignoresSafeArea())
         }
         .onAppear {
             healthManager.requestAuthorization()
@@ -107,14 +115,32 @@ struct WatchContentView: View {
     // MARK: - Actions
     private func toggleSession() {
         if motionManager.isActive {
+            // 🛑 Stop Session
             motionManager.stopMotionUpdates()
-            stopStopwatch()
             healthManager.stopHeartRateUpdates()
+            stopStopwatch()
+
+            // Ensure UI updates before resetting timer
+            DispatchQueue.main.async {
+                motionManager.isActive = false
+            }
+
+            // 🟢 Send stop message to phone
+            //motionManager.sendSessionStatusUpdate(isActive: false) removed due to errors
+
         } else {
+            // ▶️ Start Session
             motionManager.startMotionUpdates()
+            healthManager.startHeartRateUpdates()
             resetStopwatch()
             startStopwatch()
-            healthManager.startHeartRateUpdates()
+
+            DispatchQueue.main.async {
+                motionManager.isActive = true
+            }
+
+            // 🟢 Send start message to phone
+            //motionManager.sendSessionStatusUpdate(isActive: true) removed due to errors
         }
     }
 
@@ -131,6 +157,12 @@ struct WatchContentView: View {
 }
 
 #Preview {
-    WatchContentView()
-        .previewDevice("Apple Watch SE (44mm)")
+    Group {
+        WatchContentView()
+            .previewDevice("Apple Watch Series 9 (41mm)")
+        WatchContentView()
+            .previewDevice("Apple Watch Series 9 (45mm)")
+        WatchContentView()
+            .previewDevice("Apple Watch Ultra 2 (49mm)")
+    }
 }

@@ -1,7 +1,7 @@
 //
 //  PhoneWCManager.swift
 //  RacqApp
-//
+//  Updated 10/30 to reflect small updates to CSV importation and allow for phone app operation without watch
 
 import Foundation
 import Combine
@@ -13,7 +13,7 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
 
     @Published var isConnected: Bool = false
 
-    // summary shown on dashboard
+    // Summary data for dashboard
     @Published var summaryShotCount: Int = 0
     @Published var summaryDurationSec: Int = 0
     @Published var summaryHeartRate: Double = 0
@@ -21,60 +21,91 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var summaryforehandCount: Int = 0
     @Published var summarybackhandCount: Int = 0
 
-    // csv file received from watch
+    // CSV file received from watch
     @Published var csvURL: URL?
 
     private override init() {
         super.init()
-        activate()
+        setupSession()
     }
 
-    private func activate() {
-        guard WCSession.isSupported() else { return }
-        WCSession.default.delegate = self
-        WCSession.default.activate()
-        print("📱 WC activated (phone)")
+    // MARK: - Session Setup
+    private func setupSession() {
+        guard WCSession.isSupported() else {
+            print("⚠️ WatchConnectivity not supported — running in phone-only mode.")
+            isConnected = false
+            return
+        }
+
+        let session = WCSession.default
+        session.delegate = self
+        session.activate()
     }
 
     // MARK: - WCSessionDelegate
     func session(_ session: WCSession,
                  activationDidCompleteWith activationState: WCSessionActivationState,
                  error: Error?) {
-        isConnected = (activationState == .activated)
-        if let e = error { print("❌ phone activate error: \(e.localizedDescription)") }
+        DispatchQueue.main.async {
+            self.isConnected = (activationState == .activated && session.isPaired)
+            if let e = error {
+                print("❌ Phone activate error: \(e.localizedDescription)")
+            } else {
+                print("✅ Phone session activated — paired: \(self.isConnected)")
+            }
+        }
     }
 
-    func sessionDidBecomeInactive(_ session: WCSession) { }
-    func sessionDidDeactivate(_ session: WCSession) { WCSession.default.activate() }
+    func sessionReachabilityDidChange(_ session: WCSession) {
+        DispatchQueue.main.async {
+            self.isConnected = session.isReachable
+            print("📡 Reachability changed — reachable: \(self.isConnected)")
+        }
+    }
 
-    // summary via message or applicationContext
+    func sessionDidBecomeInactive(_ session: WCSession) {
+        DispatchQueue.main.async { self.isConnected = false }
+    }
+
+    func sessionDidDeactivate(_ session: WCSession) {
+        DispatchQueue.main.async { self.isConnected = false }
+    }
+
     func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
-        applySummary(message)
-    }
-    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String : Any]) {
-        applySummary(applicationContext)
+        DispatchQueue.main.async {
+            self.applySummary(message)
+        }
     }
 
+    // MARK: - Handle Summary Data
     private func applySummary(_ dict: [String: Any]) {
         if let shots = dict["shotCount"] as? Int { summaryShotCount = shots }
-        if let dur = dict["duration"] as? Int { summaryDurationSec = dur }
+        if let dur = dict["durationSec"] as? Int ?? dict["duration"] as? Int { summaryDurationSec = dur }
         if let hr = dict["heartRate"] as? Double { summaryHeartRate = hr }
-        if let ts = dict["timestamp"] as? String { summaryTimestampISO = ts }
-        print("📥 summary updated: shots=\(summaryShotCount) dur=\(summaryDurationSec) hr=\(summaryHeartRate)")
+        if let ts = dict["timestampISO"] as? String ?? dict["timestamp"] as? String { summaryTimestampISO = ts }
+        if let fh = dict["forehandCount"] as? Int { summaryforehandCount = fh }
+        if let bh = dict["backhandCount"] as? Int { summarybackhandCount = bh }
+
+        print("📥 Summary received: shots=\(summaryShotCount), dur=\(summaryDurationSec), hr=\(summaryHeartRate)")
     }
 
-    // file transfer
+    // MARK: - File Transfer
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
         let fm = FileManager.default
         let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
         let dest = docs.appendingPathComponent(file.fileURL.lastPathComponent)
-        try? fm.removeItem(at: dest)
+
         do {
+            if fm.fileExists(atPath: dest.path) {
+                try fm.removeItem(at: dest)
+            }
             try fm.copyItem(at: file.fileURL, to: dest)
-            csvURL = dest
-            print("📄 CSV received at \(dest.path)")
+            DispatchQueue.main.async { // ✅ Critical fix
+                self.csvURL = dest
+                print("📄 CSV received and saved at: \(dest.path)")
+            }
         } catch {
-            print("❌ failed to move CSV: \(error.localizedDescription)")
+            print("❌ Failed to move CSV: \(error.localizedDescription)")
         }
     }
 }

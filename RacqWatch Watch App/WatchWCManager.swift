@@ -22,7 +22,7 @@ final class WatchWCManager: NSObject, WCSessionDelegate {
         if WCSession.default.isReachable {
             WCSession.default.sendMessage(dict, replyHandler: nil) { err in
                 print("❌ sendMessage error: \(err.localizedDescription)")
-            }
+            }	
         } else {
             try? WCSession.default.updateApplicationContext(dict)
         }

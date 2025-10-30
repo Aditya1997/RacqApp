@@ -3,7 +3,7 @@
 //  Racq App
 //
 //  Created by Deets on 10/29/25.
-//
+//  10/30/2025 - Added Firebase backend functionality
 
 import Foundation
 import Combine
@@ -14,12 +14,19 @@ import FirebaseFirestore
 final class ChallengeStore: ObservableObject {   // <-- must be a class (not struct)
     @Published var challenges: [Challenge] = []  // <-- at least one @Published property
 
-    private let db = FirebaseManager.shared.db
-
+    private var db: Firestore {
+        FirebaseManager.shared.db
+    }
+    
     func fetchChallenges() async {
+        guard FirebaseApp.app() != nil else {
+            print("⚠️ Firebase not configured yet")
+            return
+        }
+
         do {
             let snapshot = try await db.collection("challenges").getDocuments()
-            let fetched: [Challenge] = snapshot.documents.compactMap { doc in
+            self.challenges = snapshot.documents.compactMap { doc in
                 let data = doc.data()
                 guard
                     let title = data["title"] as? String,
@@ -35,9 +42,9 @@ final class ChallengeStore: ObservableObject {   // <-- must be a class (not str
                     participants: participants
                 )
             }
-            self.challenges = fetched
+            print("✅ Loaded \(self.challenges.count) challenges")
         } catch {
-            print("Error fetching challenges: \(error)")
+            print("❌ Error fetching challenges: \(error.localizedDescription)")
         }
     }
 
