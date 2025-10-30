@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3B622D0F2EB2C5A7004E2EC6 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3B622D0E2EB2C5A7004E2EC6 /* FirebaseCore */; };
+		3B622D112EB2C5A7004E2EC6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 3B622D102EB2C5A7004E2EC6 /* FirebaseFirestore */; };
+		3B622D132EB2C7E9004E2EC6 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 3B622D122EB2C7E9004E2EC6 /* FirebaseAuth */; };
 		D30DBD5B2EA837C900385A48 /* CoreMotion.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D31560692EA7394D00D77693 /* CoreMotion.framework */; };
 		D36077452EA84FE400CF9733 /* WatchConnectivity.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D315608D2EA7F41900D77693 /* WatchConnectivity.framework */; };
 		D384C9F62EA91A3F001AFE57 /* RacqWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = D36103352EA729D600846EF5 /* RacqWatch Watch App.app */; };
@@ -81,7 +84,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3B622D0F2EB2C5A7004E2EC6 /* FirebaseCore in Frameworks */,
 				D36077452EA84FE400CF9733 /* WatchConnectivity.framework in Frameworks */,
+				3B622D112EB2C5A7004E2EC6 /* FirebaseFirestore in Frameworks */,
+				3B622D132EB2C7E9004E2EC6 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -162,6 +168,9 @@
 			);
 			name = "Racq App";
 			packageProductDependencies = (
+				3B622D0E2EB2C5A7004E2EC6 /* FirebaseCore */,
+				3B622D102EB2C5A7004E2EC6 /* FirebaseFirestore */,
+				3B622D122EB2C7E9004E2EC6 /* FirebaseAuth */,
 			);
 			productName = "Racq App";
 			productReference = D3DB037C2EA720EA00609238 /* Racq App.app */;
@@ -194,6 +203,9 @@
 			);
 			mainGroup = D3DB03732EA720EA00609238;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3B622D0D2EB2C5A7004E2EC6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D3DB037D2EA720EA00609238 /* Products */;
 			projectDirPath = "";
@@ -254,9 +266,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RacqWatch Watch App/RacqWatch Watch App.entitlements";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1.0.7;
-				DEVELOPMENT_TEAM = ZXYKBFZKSB;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = RacqWatch;
@@ -272,6 +286,8 @@
 				MARKETING_VERSION = 5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.briantsao.RacqApp.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "RacqWatchApp Distribution";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -291,9 +307,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "RacqWatch Watch App/RacqWatch Watch App.entitlements";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1.0.7;
-				DEVELOPMENT_TEAM = ZXYKBFZKSB;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = RacqWatch;
@@ -309,6 +327,8 @@
 				MARKETING_VERSION = 5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.briantsao.RacqApp.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "RacqWatchApp Distribution";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -449,9 +469,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Racq App/Racq App.entitlements";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1.1.0;
-				DEVELOPMENT_TEAM = ZXYKBFZKSB;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Racq-App-Info.plist";
@@ -471,6 +493,8 @@
 				MARKETING_VERSION = 5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.briantsao.RacqApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "BT Provision Profile";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -488,9 +512,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Racq App/Racq App.entitlements";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1.1.0;
-				DEVELOPMENT_TEAM = ZXYKBFZKSB;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Racq-App-Info.plist";
@@ -510,6 +536,8 @@
 				MARKETING_VERSION = 5;
 				PRODUCT_BUNDLE_IDENTIFIER = com.briantsao.RacqApp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "BT Provision Profile";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -552,6 +580,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3B622D0D2EB2C5A7004E2EC6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.5.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3B622D0E2EB2C5A7004E2EC6 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3B622D0D2EB2C5A7004E2EC6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		3B622D102EB2C5A7004E2EC6 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3B622D0D2EB2C5A7004E2EC6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		3B622D122EB2C7E9004E2EC6 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3B622D0D2EB2C5A7004E2EC6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = D3DB03742EA720EA00609238 /* Project object */;
 }
