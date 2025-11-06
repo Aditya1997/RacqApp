@@ -158,14 +158,16 @@ final class MotionManager: ObservableObject {
         
         let yawDeg = attitude.yaw * 180.0 / .pi
         let gyroZDeg = gyro.z * 180.0 / .pi
+        let gyroYDeg = gyro.y * 180.0 / .pi     // 🟢 NEW
 
         // Flip signs if on left wrist 🟢 NEW
         let effectiveYaw = isLeftWrist ? -yawDeg : yawDeg
         let effectiveGyroZ = isLeftWrist ? -gyroZDeg : gyroZDeg
+        let effectiveGyroY = isLeftWrist ? -gyroYDeg : gyroYDeg     // 🟢 NEW
 
         // Classify based on effective rotation
-        let isForehand = (effectiveYaw > 0 && effectiveGyroZ > 0)
-        let isBackhand = (effectiveYaw < 0 && effectiveGyroZ < 0)
+        let isForehand = (effectiveYaw > 0 && effectiveGyroZ > 0) || (effectiveGyroY > 35 && effectiveGyroZ > 0)
+        let isBackhand = (effectiveYaw < 0 && effectiveGyroZ < 0) || (effectiveGyroY < -35 && effectiveGyroZ < 0)
         
         // 🟢 UPDATED: Apply smoothing filter to magnitude
         let magnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
@@ -217,7 +219,7 @@ final class MotionManager: ObservableObject {
         dataLog.append(record)
 
         // Optional debug print
-        print("🎾 \(wristSide) | \(lastSwingType) | GyroZ: \(String(format: "%.2f", gyroZDeg)) | Yaw: \(String(format: "%.2f", yawDeg)) | Mag: \(String(format: "%.2f", smoothedMagnitude))")
+        print("🎾 \(wristSide) | \(lastSwingType) | GyroZ: \(String(format: "%.2f", gyroZDeg)) | GyroY: \(String(format: "%.2f", gyroYDeg)) | Yaw: \(String(format: "%.2f", yawDeg)) | Mag: \(String(format: "%.2f", smoothedMagnitude))") // 🟢 CHANGED
     }
 
     // MARK: - CSV Export (includes new orientation columns)
