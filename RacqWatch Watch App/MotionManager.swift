@@ -115,14 +115,14 @@ final class MotionManager: ObservableObject {
         //    Task { @MainActor [weak self] in self?.captureMotionData() }
         //}
         
-        motionManager.deviceMotionUpdateInterval = 1.0 / 50.0
+        motionManager.deviceMotionUpdateInterval = 1.0 / 100.0
         motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
                                                to: OperationQueue.main) { [weak self] _, _ in
             //guard let self, let data else { return }
             self?.captureMotionData()
         }
         
-        print("✅ Started motion updates at 50 Hz.")
+        print("✅ Started motion updates at 100 Hz.")
     }
     
     // MARK: - Stop + export + notify phone (11/11 removed timer)
