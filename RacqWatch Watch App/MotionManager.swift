@@ -42,7 +42,7 @@ final class MotionManager: ObservableObject {
     // Peak detection
     private var isSwinging = false
     private var lastShotTime: Date = .distantPast
-    private let shotCooldown: TimeInterval = 0.2
+    private let shotCooldown: TimeInterval = 0.4
     
     // Duration tracking
     private var sessionStart: Date?
@@ -115,14 +115,14 @@ final class MotionManager: ObservableObject {
         //    Task { @MainActor [weak self] in self?.captureMotionData() }
         //}
         
-        motionManager.deviceMotionUpdateInterval = 1.0 / 100.0
+        motionManager.deviceMotionUpdateInterval = 1.0 / 50.0
         motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
                                                to: OperationQueue.main) { [weak self] _, _ in
             //guard let self, let data else { return }
             self?.captureMotionData()
         }
         
-        print("✅ Started motion updates at 100 Hz.")
+        print("✅ Started motion updates at 50 Hz.")
     }
     
     // MARK: - Stop + export + notify phone (11/11 removed timer)
@@ -202,12 +202,12 @@ final class MotionManager: ObservableObject {
         if magnitudeBuffer.count > 5 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 1.5
-        let smoothedMagnitudeLimit: Double = 2
+        let accelDeltaLimit: Double = 0.5
+        let smoothedMagnitudeLimit: Double = 1
         
         var accelDelta: Double = 0.0
         if magnitudeBuffer.count == 5 {
-            accelDelta = abs(magnitudeBuffer.last! - magnitudeBuffer.first!)
+            accelDelta = abs(magnitudeBuffer.last!-magnitudeBuffer.first!)
         }
         
         let now = Date()
@@ -222,16 +222,11 @@ final class MotionManager: ObservableObject {
         
         // ✅ Swing start
         if !isSwinging {
-            if accelDelta > accelDeltaLimit || smoothedMagnitude > smoothedMagnitudeLimit {
+            if (accelDelta > accelDeltaLimit || smoothedMagnitude > smoothedMagnitudeLimit) && smoothedMagnitude > 0.5 {
                 isSwinging = true
                 SwingState.peakMagnitude = smoothedMagnitude
                 SwingState.startTime = now
                 SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
-                shotCount += 1
-                lastShotTime = now
-                if isForehand { forehandCount += 1 }
-                else if isBackhand { backhandCount += 1 }
-                
                 if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
             }
         } else {
@@ -241,7 +236,7 @@ final class MotionManager: ObservableObject {
             }
             
             // ✅ Swing end
-            if (SwingState.peakMagnitude - smoothedMagnitude >= 4) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
+            if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
                 isSwinging = false
                 if let start = SwingState.startTime {
                     let duration = now.timeIntervalSince(start)
