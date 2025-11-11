@@ -130,6 +130,7 @@ struct WatchContentView: View {
 
         } else {
             // ▶️ Start Session
+            //motionManager.beginWorkoutSession()
             motionManager.startMotionUpdates()
             healthManager.startHeartRateUpdates()
             resetStopwatch()

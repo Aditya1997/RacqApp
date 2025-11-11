@@ -4,13 +4,16 @@
 //
 // 10/28/2025 Update to modify classification structure to add new variables, rotational direction instead of facingForward/pitch only, smoothing and cooldown handling
 // 11/10/2025 Update to improve swing determination using change in acceleration instead of pure acceleration, 3 point smoothing instead of 5, 100 Hz rate, and new csv data
-// 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added
+// 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added, added workout session
 
 import Foundation
 import CoreMotion
 import Combine
 import WatchKit
 import WatchConnectivity
+import HealthKit
+private var workoutSession: HKWorkoutSession?
+private var healthStore = HKHealthStore()
 
 @MainActor
 final class MotionManager: ObservableObject {
@@ -72,8 +75,23 @@ final class MotionManager: ObservableObject {
         let isBackhand: Bool // 🟢 NEW
     }
     
+    // MARK: - HealthKit Sessions
+    func beginWorkoutSession() {
+        let config = HKWorkoutConfiguration()
+        config.activityType = .tennis        // 🟢 your sport type
+        config.locationType = .indoor        // or .outdoor
+
+        do {
+            workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: config)
+            workoutSession?.startActivity(with: Date())
+            print("🏃‍♂️ Workout session started – background motion enabled.")
+        } catch {
+            print("❌ Failed to start workout session: \(error.localizedDescription)")
+        }
+    }
     // MARK: - Start
     func startMotionUpdates() {
+        beginWorkoutSession()
         guard motionManager.isDeviceMotionAvailable else {
             print("❌ Motion sensors unavailable.")
             return
@@ -99,9 +117,9 @@ final class MotionManager: ObservableObject {
         
         motionManager.deviceMotionUpdateInterval = 1.0 / 100.0
         motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
-                                               to: OperationQueue.main) { [weak self] data, error in
-            guard let self, let data else { return }
-            self.captureMotionData()
+                                               to: OperationQueue.main) { [weak self] _, _ in
+            //guard let self, let data else { return }
+            self?.captureMotionData()
         }
         
         print("✅ Started motion updates at 100 Hz.")
@@ -110,6 +128,7 @@ final class MotionManager: ObservableObject {
     // MARK: - Stop + export + notify phone (11/11 removed timer)
     func stopMotionUpdates() {
         motionManager.stopDeviceMotionUpdates()
+        endWorkoutSession()
         //timer?.invalidate()
         //timer = nil
         isActive = false
@@ -133,6 +152,12 @@ final class MotionManager: ObservableObject {
         // 2) Export and transfer CSV
         if let fileURL = exportCSV() {
             WatchWCManager.shared.sendFileToPhone(fileURL)
+        }
+        
+        func endWorkoutSession() {
+            workoutSession?.end()
+            workoutSession = nil
+            print("🛑 Workout session ended.")
         }
     }
     
@@ -175,8 +200,8 @@ final class MotionManager: ObservableObject {
         if magnitudeBuffer.count > 5 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        var accelDeltaLimit: Double = 0.05
-        var smoothedMagnitudeLimit: Double = 0.3
+        let accelDeltaLimit: Double = 0.05
+        let smoothedMagnitudeLimit: Double = 0.3
         
         var accelDelta: Double = 0.0
         if magnitudeBuffer.count == 5 {

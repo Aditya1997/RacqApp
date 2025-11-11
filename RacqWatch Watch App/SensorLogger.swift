@@ -14,6 +14,7 @@ final class SensorLogger: ObservableObject {
         guard !isLogging else { return }
         isLogging = true
         logEntries.removeAll()
+        //motionManager.beginWorkoutSession()
         motionManager.startMotionUpdates()   // ✅ Correct method
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.appendLogEntry()
