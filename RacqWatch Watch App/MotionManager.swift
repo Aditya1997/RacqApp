@@ -4,7 +4,7 @@
 //
 // 10/28/2025 Update to modify classification structure to add new variables, rotational direction instead of facingForward/pitch only, smoothing and cooldown handling
 // 11/10/2025 Update to improve swing determination using change in acceleration instead of pure acceleration, 3 point smoothing instead of 5, 100 Hz rate, and new csv data
-// 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added, added workout session
+// 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added, added workout session, modified type classificationa and limits
 
 import Foundation
 import CoreMotion
@@ -72,13 +72,13 @@ final class MotionManager: ObservableObject {
         let facingForward: Bool
         let wrist: String
         let isForehand: Bool
-        let isBackhand: Bool // 🟢 NEW
+        let isBackhand: Bool
     }
     
     // MARK: - HealthKit Sessions
     func beginWorkoutSession() {
         let config = HKWorkoutConfiguration()
-        config.activityType = .tennis        // 🟢 your sport type
+        config.activityType = .tennis        // your sport type
         config.locationType = .indoor        // or .outdoor
 
         do {
@@ -143,7 +143,7 @@ final class MotionManager: ObservableObject {
             "shotCount": shotCount,
             "duration": Int(durationSec),
             "heartRate": hr,
-            "forehandCount": forehandCount,   // 🟢 Include new counters
+            "forehandCount": forehandCount,
             "backhandCount": backhandCount,
             "timestamp": ISO8601DateFormatter().string(from: Date())
         ]
@@ -173,20 +173,22 @@ final class MotionManager: ObservableObject {
         let rollDeg  = attitude.roll  * 180.0 / .pi
         let pitchDeg = attitude.pitch * 180.0 / .pi
         let yawDeg   = attitude.yaw   * 180.0 / .pi
-        
+
+        let gyroXDeg = gyro.x * 180.0 / .pi
         let gyroYDeg = gyro.y * 180.0 / .pi
         let gyroZDeg = gyro.z * 180.0 / .pi
         
         let isLeftWrist = false
         let wristSide = "Right Wrist"
-        
+
+        let effectiveGyroX = isLeftWrist ? -gyroXDeg : gyroXDeg
         let effectiveGyroY = isLeftWrist ? -gyroYDeg : gyroYDeg
         let effectiveGyroZ = isLeftWrist ? -gyroZDeg : gyroZDeg
         let effectiveYaw   = isLeftWrist ? -yawDeg   : yawDeg
         
         // --- Classification (degrees) ---
-        let isForehand = (effectiveYaw > 0 && effectiveGyroZ > 0) ||  (effectiveGyroY > 35 && effectiveGyroZ > 0)
-        let isBackhand = (effectiveYaw < 0 && effectiveGyroZ < 0) ||  (effectiveGyroY < -35 && effectiveGyroZ < 0)
+        let isForehand = (effectiveGyroX > 10 && effectiveGyroY < 0)   //||  (effectiveYaw < 0 && effectiveGyroZ > 0)
+        let isBackhand = (effectiveGyroX < -10 && effectiveGyroY > 0)    //||  (effectiveYaw > 0 && effectiveGyroZ < 0)
         
         //let yawThreshold: Double = 10.0
         //let angularSpeed = sqrt(effectiveGyroY * effectiveGyroY + effectiveGyroZ * effectiveGyroZ)
@@ -200,8 +202,8 @@ final class MotionManager: ObservableObject {
         if magnitudeBuffer.count > 5 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 0.05
-        let smoothedMagnitudeLimit: Double = 0.3
+        let accelDeltaLimit: Double = 1.5
+        let smoothedMagnitudeLimit: Double = 2
         
         var accelDelta: Double = 0.0
         if magnitudeBuffer.count == 5 {
@@ -215,6 +217,7 @@ final class MotionManager: ObservableObject {
             static var peakMagnitude: Double = 0.0
             static var startTime: Date? = nil
             static var type: String = ""
+            static var pendingType: String = ""
         }
         
         // ✅ Swing start
@@ -223,7 +226,7 @@ final class MotionManager: ObservableObject {
                 isSwinging = true
                 SwingState.peakMagnitude = smoothedMagnitude
                 SwingState.startTime = now
-                SwingState.type = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
+                SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
                 shotCount += 1
                 lastShotTime = now
                 if isForehand { forehandCount += 1 }
@@ -238,10 +241,16 @@ final class MotionManager: ObservableObject {
             }
             
             // ✅ Swing end
-            if (SwingState.peakMagnitude - smoothedMagnitude >= 0.2) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
+            if (SwingState.peakMagnitude - smoothedMagnitude >= 4) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
                 isSwinging = false
                 if let start = SwingState.startTime {
                     let duration = now.timeIntervalSince(start)
+                    let type = SwingState.pendingType
+                    shotCount += 1
+                    if type == "Forehand" { forehandCount += 1 }
+                    else if type == "Backhand" { backhandCount += 1 }
+                    lastSwingType = type
+                    lastShotTime = now
                     let summary = SwingSummary(timestamp: now,
                                                peakMagnitude: SwingState.peakMagnitude,
                                                duration: duration,
