@@ -187,8 +187,8 @@ final class MotionManager: ObservableObject {
         let effectiveYaw   = isLeftWrist ? -yawDeg   : yawDeg
         
         // --- Classification (degrees) ---
-        let isForehand = (effectiveGyroX > 10 && effectiveGyroY < 0)   //||  (effectiveYaw < 0 && effectiveGyroZ > 0)
-        let isBackhand = (effectiveGyroX < -10 && effectiveGyroY > 0)    //||  (effectiveYaw > 0 && effectiveGyroZ < 0)
+        let isForehand = (effectiveGyroX > 5 && effectiveGyroY < 0)   //||  (effectiveYaw < 0 && effectiveGyroZ > 0)
+        let isBackhand = (effectiveGyroX < -5 && effectiveGyroY > 0)    //||  (effectiveYaw > 0 && effectiveGyroZ < 0)
         
         //let yawThreshold: Double = 10.0
         //let angularSpeed = sqrt(effectiveGyroY * effectiveGyroY + effectiveGyroZ * effectiveGyroZ)
