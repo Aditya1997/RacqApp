@@ -3,7 +3,8 @@
 //  RacqWatch Watch App
 //
 // 10/28/2025 Update to modify classification structure to add new variables, rotational direction instead of facingForward/pitch only, smoothing and cooldown handling
-// 11/11/2025 Update to improve swing determination using change in acceleration instead of pure acceleration, 3 point smoothing instead of 5, 100 Hz rate, and new csv data
+// 11/10/2025 Update to improve swing determination using change in acceleration instead of pure acceleration, 3 point smoothing instead of 5, 100 Hz rate, and new csv data
+// 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added
 
 import Foundation
 import CoreMotion
@@ -45,8 +46,6 @@ final class MotionManager: ObservableObject {
     
     // 🟢 UPDATED: Smoothing buffer
     private var magnitudeBuffer: [Double] = []
-    private let bufferSize = 5
-    
     
     private init() {
         WatchWCManager.shared.activateSession()
@@ -91,23 +90,28 @@ final class MotionManager: ObservableObject {
         lastShotTime = .distantPast
         sessionStart = Date()
         
-        // 🔧 Increase sampling rate to 100 Hz
-        motionManager.deviceMotionUpdateInterval = 1.0 / 100.0
-        motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical)
+        // 🔧 Sampling rate 100 Hz, (11/11 switched to CoreMotion timer)
         
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 100.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor [weak self] in self?.captureMotionData() }
+        //timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 100.0, repeats: true) { [weak self] _ in
+        //    guard let self else { return }
+        //    Task { @MainActor [weak self] in self?.captureMotionData() }
+        //}
+        
+        motionManager.deviceMotionUpdateInterval = 1.0 / 100.0
+        motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
+                                               to: OperationQueue.main) { [weak self] data, error in
+            guard let self, let data else { return }
+            self.captureMotionData()
         }
         
         print("✅ Started motion updates at 100 Hz.")
     }
     
-    // MARK: - Stop + export + notify phone
+    // MARK: - Stop + export + notify phone (11/11 removed timer)
     func stopMotionUpdates() {
         motionManager.stopDeviceMotionUpdates()
-        timer?.invalidate()
-        timer = nil
+        //timer?.invalidate()
+        //timer = nil
         isActive = false
         
         let durationSec = max(0, Date().timeIntervalSince(sessionStart ?? Date()))
@@ -156,21 +160,31 @@ final class MotionManager: ObservableObject {
         let effectiveYaw   = isLeftWrist ? -yawDeg   : yawDeg
         
         // --- Classification (degrees) ---
-        let isForehand = (effectiveYaw > 0 && effectiveGyroZ > 0) ||
-        (effectiveGyroY > 35 && effectiveGyroZ > 0)
-        let isBackhand = (effectiveYaw < 0 && effectiveGyroZ < 0) ||
-        (effectiveGyroY < -35 && effectiveGyroZ < 0)
+        let isForehand = (effectiveYaw > 0 && effectiveGyroZ > 0) ||  (effectiveGyroY > 35 && effectiveGyroZ > 0)
+        let isBackhand = (effectiveYaw < 0 && effectiveGyroZ < 0) ||  (effectiveGyroY < -35 && effectiveGyroZ < 0)
         
-        // --- Magnitude smoothing (3-sample moving average) ---
+        //let yawThreshold: Double = 10.0
+        //let angularSpeed = sqrt(effectiveGyroY * effectiveGyroY + effectiveGyroZ * effectiveGyroZ)
+
+        //let isForehand = (effectiveGyroZ > 40 && effectiveGyroY > 0 && effectiveYaw > yawThreshold)
+        //let isBackhand = (effectiveGyroZ < -40 && effectiveGyroY < 0 && effectiveYaw < -yawThreshold)
+        
+        // --- Magnitude smoothing (5-sample moving average) ---
         let rawMagnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
         magnitudeBuffer.append(rawMagnitude)
-        if magnitudeBuffer.count > 3 { magnitudeBuffer.removeFirst() }
+        if magnitudeBuffer.count > 5 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
+        var accelDeltaLimit: Double = 0.05
+        var smoothedMagnitudeLimit: Double = 0.3
+        
+        var accelDelta: Double = 0.0
+        if magnitudeBuffer.count == 5 {
+            accelDelta = abs(magnitudeBuffer.last! - magnitudeBuffer.first!)
+        }
         
         let now = Date()
-        let accelDelta = abs(rawMagnitude - 1.0)
-        
+                
         // --- Swing state memory ---
         struct SwingState {
             static var peakMagnitude: Double = 0.0
@@ -180,12 +194,11 @@ final class MotionManager: ObservableObject {
         
         // ✅ Swing start
         if !isSwinging {
-            if accelDelta > 0.3 || smoothedMagnitude > 0.4 {
+            if accelDelta > accelDeltaLimit || smoothedMagnitude > smoothedMagnitudeLimit {
                 isSwinging = true
                 SwingState.peakMagnitude = smoothedMagnitude
                 SwingState.startTime = now
                 SwingState.type = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
-                
                 shotCount += 1
                 lastShotTime = now
                 if isForehand { forehandCount += 1 }
@@ -200,8 +213,7 @@ final class MotionManager: ObservableObject {
             }
             
             // ✅ Swing end
-            if (SwingState.peakMagnitude - smoothedMagnitude >= 0.2) ||
-                (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
+            if (SwingState.peakMagnitude - smoothedMagnitude >= 0.2) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
                 isSwinging = false
                 if let start = SwingState.startTime {
                     let duration = now.timeIntervalSince(start)
