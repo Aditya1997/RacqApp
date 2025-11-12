@@ -231,8 +231,10 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         if magnitudeBuffer.count > 5 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 1
-        let smoothedMagnitudeLimit: Double = 2.5
+        let accelDeltaLimit: Double = 0.7
+        let smoothedMagnitudeLimit: Double = 1.6
+        let RMSeffectiveGyroXY = sqrt(effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY)
+        let smoothedgyroLimit: Double = 15.0
         
         var accelDelta: Double = 0.0
         if magnitudeBuffer.count == 5 {
@@ -251,7 +253,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         
         // ✅ Swing start
         if !isSwinging {
-            if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit { //|| smoothedMagnitude > smoothedMagnitudeLimit)
+            if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && RMSeffectiveGyroXY > smoothedgyroLimit { //|| smoothedMagnitude > smoothedMagnitudeLimit)
                 isSwinging = true
                 SwingState.peakMagnitude = smoothedMagnitude
                 SwingState.startTime = now
