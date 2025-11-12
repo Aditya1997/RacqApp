@@ -18,6 +18,7 @@ import HealthKit
 final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate {
     private var workoutSession: HKWorkoutSession?
     private var healthStore = HKHealthStore()
+    private let backgroundQueue = OperationQueue()
     
     static let shared = MotionManager()
     
@@ -63,7 +64,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             print("🏃 Workout session is now running – motion updates safe to start.")
         }
     }
-
+    
     func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
         print("❌ Workout session failed: \(error.localizedDescription)")
     }
@@ -94,7 +95,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let config = HKWorkoutConfiguration()
         config.activityType = .tennis        // your sport type
         config.locationType = .indoor        // or .outdoor
-
+        
         do {
             workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: config)
             workoutSession?.delegate = self  // 🟩 FIX: assign delegate properly
@@ -131,10 +132,12 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         //}
         
         motionManager.deviceMotionUpdateInterval = 1.0 / 100.0
+
         motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
-                                               to: OperationQueue.main) { [weak self] _, _ in
-            //guard let self, let data else { return }
-            self?.captureMotionData()
+                                               to: backgroundQueue) { [weak self] _, _ in
+            Task { @MainActor in
+                self?.captureMotionData()
+            }
         }
         
         print("✅ Started motion updates at 100 Hz.")
@@ -199,14 +202,14 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let rollDeg  = attitude.roll  * 180.0 / .pi
         let pitchDeg = attitude.pitch * 180.0 / .pi
         let yawDeg   = attitude.yaw   * 180.0 / .pi
-
+        
         let gyroXDeg = gyro.x * 180.0 / .pi
         let gyroYDeg = gyro.y * 180.0 / .pi
         let gyroZDeg = gyro.z * 180.0 / .pi
         
         let isLeftWrist = false
         let wristSide = "Right Wrist"
-
+        
         let effectiveGyroX = isLeftWrist ? -gyroXDeg : gyroXDeg
         let effectiveGyroY = isLeftWrist ? -gyroYDeg : gyroYDeg
         //let effectiveGyroZ = isLeftWrist ? -gyroZDeg : gyroZDeg
@@ -218,7 +221,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         
         //let yawThreshold: Double = 10.0
         //let angularSpeed = sqrt(effectiveGyroY * effectiveGyroY + effectiveGyroZ * effectiveGyroZ)
-
+        
         //let isForehand = (effectiveGyroZ > 40 && effectiveGyroY > 0 && effectiveYaw > yawThreshold)
         //let isBackhand = (effectiveGyroZ < -40 && effectiveGyroY < 0 && effectiveYaw < -yawThreshold)
         
@@ -228,8 +231,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         if magnitudeBuffer.count > 5 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 0.9
-        let smoothedMagnitudeLimit: Double = 1
+        let accelDeltaLimit: Double = 1
+        let smoothedMagnitudeLimit: Double = 2.5
         
         var accelDelta: Double = 0.0
         if magnitudeBuffer.count == 5 {
@@ -237,7 +240,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
         
         let now = Date()
-                
+        
         // --- Swing state memory ---
         struct SwingState {
             static var peakMagnitude: Double = 0.0
@@ -248,7 +251,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         
         // ✅ Swing start
         if !isSwinging {
-            if accelDelta > accelDeltaLimit && smoothedMagnitude > 0.5 { //|| smoothedMagnitude > smoothedMagnitudeLimit)
+            if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit { //|| smoothedMagnitude > smoothedMagnitudeLimit)
                 isSwinging = true
                 SwingState.peakMagnitude = smoothedMagnitude
                 SwingState.startTime = now
@@ -308,14 +311,14 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     }
     
     // MARK: - 🟩 4. Restart motion stream if frozen
-       private func restartDeviceMotion() {
-           motionManager.stopDeviceMotionUpdates()
-           motionManager.startDeviceMotionUpdates(to: OperationQueue.main) { [weak self] motion, error in
-               guard let self = self, let motion = motion else { return }
-               self.captureMotionData()
-           }
-           print("🔄 Restarted motion updates.")
-       }
+    private func restartDeviceMotion() {
+        motionManager.stopDeviceMotionUpdates()
+        motionManager.startDeviceMotionUpdates(to: OperationQueue.main) { [weak self] motion, error in
+            guard let self = self, let motion = motion else { return }
+            self.captureMotionData()
+        }
+        print("🔄 Restarted motion updates.")
+    }
     
     // MARK: - CSV Export (includes new orientation columns)
     private func exportCSV() -> URL? {
