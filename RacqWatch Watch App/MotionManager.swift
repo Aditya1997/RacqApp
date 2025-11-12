@@ -216,8 +216,12 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         //let effectiveYaw   = isLeftWrist ? -yawDeg   : yawDeg
         
         // --- Classification (degrees) ---
-        let isForehand = (abs(effectiveGyroX) > 5 && effectiveGyroY < 0)   //||  (effectiveYaw < 0 && effectiveGyroZ > 0)
-        let isBackhand = (abs(effectiveGyroX) > 5 && effectiveGyroY > 0)    //||  (effectiveYaw > 0 && effectiveGyroZ < 0)
+        var isForehand = false
+        var isBackhand = false
+
+        }
+        //let isForehand = (abs(effectiveGyroX) > 5 && effectiveGyroY < 0)   //||  (effectiveYaw < 0 && effectiveGyroZ > 0)
+        //let isBackhand = (abs(effectiveGyroX) > 5 && effectiveGyroY > 0)    //||  (effectiveYaw > 0 && effectiveGyroZ < 0)
         
         //let yawThreshold: Double = 10.0
         //let angularSpeed = sqrt(effectiveGyroY * effectiveGyroY + effectiveGyroZ * effectiveGyroZ)
@@ -228,16 +232,16 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         // --- Magnitude smoothing (5-sample moving average) ---
         let rawMagnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
         magnitudeBuffer.append(rawMagnitude)
-        if magnitudeBuffer.count > 5 { magnitudeBuffer.removeFirst() }
+        if magnitudeBuffer.count > 7 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 0.7
-        let smoothedMagnitudeLimit: Double = 1.6
+        let accelDeltaLimit: Double = 1
+        let smoothedMagnitudeLimit: Double = 2
         let RMSeffectiveGyroXY = sqrt(effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY)
         let smoothedgyroLimit: Double = 15.0
         
         var accelDelta: Double = 0.0
-        if magnitudeBuffer.count == 5 {
+        if magnitudeBuffer.count == 7 {
             accelDelta = magnitudeBuffer.last!-magnitudeBuffer.first!
         }
         
@@ -249,6 +253,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             static var startTime: Date? = nil
             static var type: String = ""
             static var pendingType: String = ""
+            static var peakGyroYPos: Double = 0.0
+            static var peakGyroYNeg: Double = 0.0
         }
         
         // ✅ Swing start
@@ -257,22 +263,35 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 isSwinging = true
                 SwingState.peakMagnitude = smoothedMagnitude
                 SwingState.startTime = now
-                SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
+                SwingState.peakGyroYPos = effectiveGyroY
+                SwingState.peakGyroYNeg = effectiveGyroY
                 if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
             }
         } else {
             // Update running peak
             if smoothedMagnitude > SwingState.peakMagnitude {
                 SwingState.peakMagnitude = smoothedMagnitude
-            }
+                }
+            if effectiveGyroY > SwingState.peakGyroYPos {
+                SwingState.peakGyroYPos = effectiveGyroY
+                }
+            if effectiveGyroY < SwingState.peakGyroYNeg {
+                SwingState.peakGyroYNeg = effectiveGyroY
+                }
             
             // ✅ Swing end
             if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
                 isSwinging = false
                 if let start = SwingState.startTime {
                     let duration = now.timeIntervalSince(start)
-                    let type = SwingState.pendingType
                     shotCount += 1
+                    if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
+                        isForehand = true
+                    }
+                    else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
+                        isBackhand = true
+                    let type = SwingState.pendingType
+                    type = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
                     if type == "Forehand" { forehandCount += 1 }
                     else if type == "Backhand" { backhandCount += 1 }
                     lastSwingType = type
