@@ -5,6 +5,7 @@
 // 10/28/2025 Update to modify classification structure to add new variables, rotational direction instead of facingForward/pitch only, smoothing and cooldown handling
 // 11/10/2025 Update to improve swing determination using change in acceleration instead of pure acceleration, 3 point smoothing instead of 5, 100 Hz rate, and new csv data
 // 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added, added workout session, modified type classificationa and limits
+// 11/12/2025 Updates to hopefully collect data consistently whether screen is on or off
 
 import Foundation
 import CoreMotion
@@ -12,16 +13,15 @@ import Combine
 import WatchKit
 import WatchConnectivity
 import HealthKit
-private var workoutSession: HKWorkoutSession?
-private var healthStore = HKHealthStore()
 
 @MainActor
-final class MotionManager: ObservableObject {
+final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate {
+    private var workoutSession: HKWorkoutSession?
+    private var healthStore = HKHealthStore()
     
     static let shared = MotionManager()
     
     private let motionManager = CMMotionManager()
-    private var timer: Timer?
     private var dataLog: [MotionData] = []
     
     @Published var lastMagnitude: Double = 0.0
@@ -50,8 +50,22 @@ final class MotionManager: ObservableObject {
     // 🟢 UPDATED: Smoothing buffer
     private var magnitudeBuffer: [Double] = []
     
-    private init() {
+    override init() {
+        super.init()
         WatchWCManager.shared.activateSession()
+    }
+    
+    func workoutSession(_ workoutSession: HKWorkoutSession,
+                        didChangeTo toState: HKWorkoutSessionState,
+                        from fromState: HKWorkoutSessionState,
+                        date: Date) {
+        if toState == .running {
+            print("🏃 Workout session is now running – motion updates safe to start.")
+        }
+    }
+
+    func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
+        print("❌ Workout session failed: \(error.localizedDescription)")
     }
     
     struct MotionData: Codable {
@@ -83,6 +97,7 @@ final class MotionManager: ObservableObject {
 
         do {
             workoutSession = try HKWorkoutSession(healthStore: healthStore, configuration: config)
+            workoutSession?.delegate = self  // 🟩 FIX: assign delegate properly
             workoutSession?.startActivity(with: Date())
             print("🏃‍♂️ Workout session started – background motion enabled.")
         } catch {
@@ -161,9 +176,20 @@ final class MotionManager: ObservableObject {
         }
     }
     
+    // MARK: - 🟩 3. Motion data freshness check
+    private var lastMotionTimestamp: TimeInterval = 0
+    
     // MARK: - Capture data (includes roll/pitch/yaw + facing direction)
     private func captureMotionData() {
         guard let data = motionManager.deviceMotion else { return }
+        
+        // 🟩 Detect frozen motion data
+        if data.timestamp == lastMotionTimestamp {
+            print("⚠️ Motion stream frozen – restarting deviceMotion")
+            restartDeviceMotion()
+            return
+        }
+        lastMotionTimestamp = data.timestamp
         
         // --- Extract attitude / rotation ---
         let acc = data.userAcceleration
@@ -183,8 +209,8 @@ final class MotionManager: ObservableObject {
 
         let effectiveGyroX = isLeftWrist ? -gyroXDeg : gyroXDeg
         let effectiveGyroY = isLeftWrist ? -gyroYDeg : gyroYDeg
-        let effectiveGyroZ = isLeftWrist ? -gyroZDeg : gyroZDeg
-        let effectiveYaw   = isLeftWrist ? -yawDeg   : yawDeg
+        //let effectiveGyroZ = isLeftWrist ? -gyroZDeg : gyroZDeg
+        //let effectiveYaw   = isLeftWrist ? -yawDeg   : yawDeg
         
         // --- Classification (degrees) ---
         let isForehand = (effectiveGyroX > 5 && effectiveGyroY < 0)   //||  (effectiveYaw < 0 && effectiveGyroZ > 0)
@@ -280,6 +306,16 @@ final class MotionManager: ObservableObject {
                      isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown"),
                      smoothedMagnitude, SwingState.peakMagnitude))
     }
+    
+    // MARK: - 🟩 4. Restart motion stream if frozen
+       private func restartDeviceMotion() {
+           motionManager.stopDeviceMotionUpdates()
+           motionManager.startDeviceMotionUpdates(to: OperationQueue.main) { [weak self] motion, error in
+               guard let self = self, let motion = motion else { return }
+               self.captureMotionData()
+           }
+           print("🔄 Restarted motion updates.")
+       }
     
     // MARK: - CSV Export (includes new orientation columns)
     private func exportCSV() -> URL? {
