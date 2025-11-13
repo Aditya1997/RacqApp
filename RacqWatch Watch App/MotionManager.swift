@@ -6,7 +6,7 @@
 // 11/10/2025 Update to improve swing determination using change in acceleration instead of pure acceleration, 3 point smoothing instead of 5, 100 Hz rate, and new csv data
 // 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added, added workout session, modified type classificationa and limits
 // 11/12/2025 Updates to hopefully collect data consistently whether screen is on or off, 7 sample moving average, modified code for forehand and backhand using peak values, added gyro req
-// 11/13/2025
+// 11/13/2025 Updates to frequency down to 80 Hz, modification of prints and csv data, modifying the motion code, change queue
 
 import Foundation
 import CoreMotion
@@ -15,7 +15,7 @@ import WatchKit
 import WatchConnectivity
 import HealthKit
 
-@MainActor
+//@MainActor
 final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate {
     private var workoutSession: HKWorkoutSession?
     private var healthStore = HKHealthStore()
@@ -48,6 +48,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     
     // Duration tracking
     private var sessionStart: Date?
+    private var lastCSVLogTime = Date()
     
     // 🟢 UPDATED: Smoothing buffer
     private var magnitudeBuffer: [Double] = []
@@ -82,8 +83,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let heartRate: Double?
         // Orientation tracking
         let roll: Double
-        let pitch: Double
-        let yaw: Double
+        //let pitch: Double
+        //let yaw: Double
         // 🟢 UPDATED: keep for logging, not used in classification
         let facingForward: Bool
         let wrist: String
@@ -124,21 +125,17 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         isSwinging = false
         lastShotTime = .distantPast
         sessionStart = Date()
+                
         
-        // 🔧 Sampling rate 100 Hz, (11/11 switched to CoreMotion timer)
-        
-        //timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 100.0, repeats: true) { [weak self] _ in
-        //    guard let self else { return }
-        //    Task { @MainActor [weak self] in self?.captureMotionData() }
-        //}
-        
-        motionManager.deviceMotionUpdateInterval = 1.0 / 100.0
+        // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
+
+        motionManager.deviceMotionUpdateInterval = 1.0 / 80.0
 
         motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
                                                to: backgroundQueue) { [weak self] _, _ in
-            Task { @MainActor in
+            //Task { @MainActor in
                 self?.captureMotionData()
-            }
+            //}
         }
         
         print("✅ Started motion updates at 100 Hz.")
@@ -183,15 +180,26 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     // MARK: - 🟩 3. Motion data freshness check
     private var lastMotionTimestamp: TimeInterval = 0
     
-    // MARK: - Capture data (includes roll/pitch/yaw + facing direction)
+    // MARK: - Capture data (and unfreeze)
+    private var frozenFrameCount = 0
+
     private func captureMotionData() {
         guard let data = motionManager.deviceMotion else { return }
         
         // 🟩 Detect frozen motion data
         if data.timestamp == lastMotionTimestamp {
-            print("⚠️ Motion stream frozen – restarting deviceMotion")
-            restartDeviceMotion()
+            frozenFrameCount += 1
+
+            if frozenFrameCount >= 5 {
+                print("⚠️ Motion frozen for 5 frames — restarting deviceMotion")
+                frozenFrameCount = 0
+                restartDeviceMotion()
+            }
+
             return
+        } else {
+            // Data is fresh → reset counter
+            frozenFrameCount = 0
         }
         lastMotionTimestamp = data.timestamp
         
@@ -200,47 +208,48 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let gyro = data.rotationRate
         let attitude = data.attitude
         
+        // UNUSED
         let rollDeg  = attitude.roll  * 180.0 / .pi
-        let pitchDeg = attitude.pitch * 180.0 / .pi
-        let yawDeg   = attitude.yaw   * 180.0 / .pi
+        //let pitchDeg = attitude.pitch * 180.0 / .pi
+        //let yawDeg   = attitude.yaw   * 180.0 / .pi
         
         let gyroXDeg = gyro.x * 180.0 / .pi
         let gyroYDeg = gyro.y * 180.0 / .pi
         let gyroZDeg = gyro.z * 180.0 / .pi
         
+        // wrist override
         let isLeftWrist = false
         let wristSide = "Right Wrist"
         
         let effectiveGyroX = isLeftWrist ? -gyroXDeg : gyroXDeg
         let effectiveGyroY = isLeftWrist ? -gyroYDeg : gyroYDeg
-        //let effectiveGyroZ = isLeftWrist ? -gyroZDeg : gyroZDeg
+        let effectiveGyroZ = isLeftWrist ? -gyroZDeg : gyroZDeg
         //let effectiveYaw   = isLeftWrist ? -yawDeg   : yawDeg
         
         // --- Classification (degrees) ---
         var isForehand = false
         var isBackhand = false
-        //let isForehand = (abs(effectiveGyroX) > 5 && effectiveGyroY < 0)   //||  (effectiveYaw < 0 && effectiveGyroZ > 0)
-        //let isBackhand = (abs(effectiveGyroX) > 5 && effectiveGyroY > 0)    //||  (effectiveYaw > 0 && effectiveGyroZ < 0)
-        
+
+        // UNUSED
         //let yawThreshold: Double = 10.0
         //let angularSpeed = sqrt(effectiveGyroY * effectiveGyroY + effectiveGyroZ * effectiveGyroZ)
         
         //let isForehand = (effectiveGyroZ > 40 && effectiveGyroY > 0 && effectiveYaw > yawThreshold)
         //let isBackhand = (effectiveGyroZ < -40 && effectiveGyroY < 0 && effectiveYaw < -yawThreshold)
         
-        // --- Magnitude smoothing (7-sample moving average) ---
+        // --- Magnitude smoothing (4-sample moving average) ---
         let rawMagnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
         magnitudeBuffer.append(rawMagnitude)
-        if magnitudeBuffer.count > 7 { magnitudeBuffer.removeFirst() }
+        if magnitudeBuffer.count > 4 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 1
-        let smoothedMagnitudeLimit: Double = 2
-        let RMSeffectiveGyroXY = sqrt(effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY)
-        let smoothedgyroLimit: Double = 12.0
+        let accelDeltaLimit: Double = 1.0
+        let smoothedMagnitudeLimit: Double = 2.0
+        let SQeffectiveGyroXY = effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY
+        let smoothedgyroLimit: Double = 144.0
         
         var accelDelta: Double = 0.0
-        if magnitudeBuffer.count == 7 {
+        if magnitudeBuffer.count == 4 {
             accelDelta = magnitudeBuffer.last!-magnitudeBuffer.first!
         }
         
@@ -256,57 +265,66 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             static var peakGyroYNeg: Double = 0.0
         }
         
-        // ✅ Swing start
-        if !isSwinging {
-            if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && RMSeffectiveGyroXY > smoothedgyroLimit { //|| smoothedMagnitude > smoothedMagnitudeLimit)
-                isSwinging = true
-                SwingState.peakMagnitude = smoothedMagnitude
-                SwingState.startTime = now
-                SwingState.peakGyroYPos = effectiveGyroY
-                SwingState.peakGyroYNeg = effectiveGyroY
-                if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
-            }
-        } else {
-            // Update running peak
-            if smoothedMagnitude > SwingState.peakMagnitude {
-                SwingState.peakMagnitude = smoothedMagnitude
+        // adding minimum magnitude check
+        if rawMagnitude > 0.5   {
+            // ✅ Swing start
+            if !isSwinging {
+                if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && SQeffectiveGyroXY > smoothedgyroLimit { //
+                    isSwinging = true
+                    SwingState.peakMagnitude = smoothedMagnitude
+                    SwingState.startTime = now
+                    SwingState.peakGyroYPos = effectiveGyroY
+                    SwingState.peakGyroYNeg = effectiveGyroY
+                    if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
                 }
-            if effectiveGyroY > SwingState.peakGyroYPos {
-                SwingState.peakGyroYPos = effectiveGyroY
+            } else {
+                // Update running peak
+                if smoothedMagnitude > SwingState.peakMagnitude {
+                    SwingState.peakMagnitude = smoothedMagnitude
                 }
-            if effectiveGyroY < SwingState.peakGyroYNeg {
-                SwingState.peakGyroYNeg = effectiveGyroY
+                if effectiveGyroY > SwingState.peakGyroYPos {
+                    SwingState.peakGyroYPos = effectiveGyroY
                 }
-            
-            // ✅ Swing end
-            if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
-                isSwinging = false
-                if let start = SwingState.startTime {
-                    let duration = now.timeIntervalSince(start)
-                    shotCount += 1
-                    if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
-                        isBackhand = true
+                if effectiveGyroY < SwingState.peakGyroYNeg {
+                    SwingState.peakGyroYNeg = effectiveGyroY
+                }
+                
+                // ✅ Swing end
+                if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
+                    isSwinging = false
+                    if let start = SwingState.startTime {
+                        let duration = now.timeIntervalSince(start)
+                        if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
+                            isBackhand = true
                         }
-                    else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
-                        isForehand = true
+                        else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
+                            isForehand = true
                         }
-                    SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
-                    let type = SwingState.pendingType
-                    if type == "Forehand" { forehandCount += 1 }
-                    else if type == "Backhand" { backhandCount += 1 }
-                    lastSwingType = type
-                    lastShotTime = now
-                    let summary = SwingSummary(timestamp: now,
-                                               peakMagnitude: SwingState.peakMagnitude,
-                                               duration: duration,
-                                               type: SwingState.type)
-                    swingSummaries.append(summary)
-                    appendSwingToCSV(summary)
-                    print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s",
-                                 SwingState.type, SwingState.peakMagnitude, duration))
+                        SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
+                        shotCount += 1
+                        let type = SwingState.pendingType
+                        DispatchQueue.main.async {
+                            self.shotCount += 1
+                            if type == "Forehand" { self.forehandCount += 1 }
+                            if type == "Backhand" { self.backhandCount += 1 }
+                            self.lastSwingType = type
+                            self.lastMagnitude = smoothedMagnitude
+                        }
+                        //if type == "Forehand" { forehandCount += 1 }
+                        //else if type == "Backhand" { backhandCount += 1 }
+                        //lastSwingType = type
+                        //lastShotTime = now
+                        let summary = SwingSummary(timestamp: now,
+                                                   peakMagnitude: SwingState.peakMagnitude,
+                                                   duration: duration,
+                                                   type: SwingState.type)
+                        swingSummaries.append(summary)
+                        appendSwingToCSV(summary)
+                        // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", SwingState.type, SwingState.peakMagnitude, duration)) // NO MORE PRINTS
+                    }
+                    SwingState.peakMagnitude = 0.0
+                    SwingState.startTime = nil
                 }
-                SwingState.peakMagnitude = 0.0
-                SwingState.startTime = nil
             }
         }
         
@@ -317,27 +335,35 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             accX: acc.x, accY: acc.y, accZ: acc.z,
             gyroX: gyro.x, gyroY: gyro.y, gyroZ: gyro.z,
             heartRate: HealthManager.shared.heartRate,
-            roll: rollDeg, pitch: pitchDeg, yaw: yawDeg,
-            facingForward: abs(pitchDeg) < 45,
+            roll: rollDeg, //pitch: pitchDeg, yaw: yawDeg,
+            facingForward: abs(rollDeg) > 0,
             wrist: wristSide,
             isForehand: isForehand,
             isBackhand: isBackhand
         )
-        dataLog.append(record)
+        //dataLog.append(record)
+
+        if now.timeIntervalSince(lastCSVLogTime) > 0.05 {   // log at 20Hz, not 80Hz
+            dataLog.append(record)
+            lastCSVLogTime = now
+        }
         
-        print(String(format: "🎾 %@ | %@ | Mag: %.3f | Peak: %.3f",
-                     wristSide,
-                     isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown"),
-                     smoothedMagnitude, SwingState.peakMagnitude))
+        // UNUSED NO MORE PRINTS
+        //print(String(format: "🎾 %@ | %@ | Mag: %.3f | Peak: %.3f",
+        //             wristSide,
+        //             isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown"),
+        //             smoothedMagnitude, SwingState.peakMagnitude))
     }
     
     // MARK: - 🟩 4. Restart motion stream if frozen
     private func restartDeviceMotion() {
         motionManager.stopDeviceMotionUpdates()
-        motionManager.startDeviceMotionUpdates(to: OperationQueue.main) { [weak self] motion, error in
+        motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
+                                               to: backgroundQueue) { [weak self] motion, error in
             guard let self = self, let motion = motion else { return }
-            self.captureMotionData()
-        }
+            //Task { @MainActor in
+                self.captureMotionData() }
+        //}
         print("🔄 Restarted motion updates.")
     }
     
@@ -346,7 +372,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let fileName = "Session_\(Int(Date().timeIntervalSince1970)).csv"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         
-        var csv = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,roll,pitch,yaw,facingForward,wrist,isForehand,isBackhand\n" // 🟢 UPDATED header
+        var csv = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,wrist,isForehand,isBackhand\n" // 🟢 UPDATED header, 11/13 removed roll,pitch,yaw,facingForward,
         
         for e in dataLog {
             csv.append(
@@ -355,7 +381,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 + "\(e.accX),\(e.accY),\(e.accZ),"
                 + "\(e.gyroX),\(e.gyroY),\(e.gyroZ),"
                 + "\(e.heartRate ?? 0),"
-                + "\(e.roll),\(e.pitch),\(e.yaw),"
+                + "\(e.roll),"
+                //+\(e.pitch),\(e.yaw),"
                 + "\(e.facingForward),"
                 + "\(e.wrist),"
                 + "\(e.isForehand),"

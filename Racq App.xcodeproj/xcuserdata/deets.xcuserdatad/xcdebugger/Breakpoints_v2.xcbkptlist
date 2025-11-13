@@ -29,15 +29,23 @@
             continueAfterRunningActions = "No"
             symbolName = "*0x7ff8024e9090">
             <Locations>
-               <Location
-                  uuid = "F12A6DB1-56A6-45B5-9BC3-A6958E9C8F90 - a2cdb8660e0cc7e9"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "*0x7ff8024e9090"
-                  usesParentBreakpointCondition = "Yes">
-               </Location>
             </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "1E8AAE35-10B3-404E-BF2B-0E7A38B2FBAF"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "RacqWatch Watch App/MotionManager.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "324"
+            endingLineNumber = "324"
+            landmarkName = "captureMotionData()"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>
