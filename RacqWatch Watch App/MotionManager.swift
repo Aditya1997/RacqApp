@@ -218,8 +218,6 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         // --- Classification (degrees) ---
         var isForehand = false
         var isBackhand = false
-
-        }
         //let isForehand = (abs(effectiveGyroX) > 5 && effectiveGyroY < 0)   //||  (effectiveYaw < 0 && effectiveGyroZ > 0)
         //let isBackhand = (abs(effectiveGyroX) > 5 && effectiveGyroY > 0)    //||  (effectiveYaw > 0 && effectiveGyroZ < 0)
         
@@ -287,11 +285,12 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                     shotCount += 1
                     if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
                         isForehand = true
-                    }
+                        }
                     else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
                         isBackhand = true
+                        }
+                    SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
                     let type = SwingState.pendingType
-                    type = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
                     if type == "Forehand" { forehandCount += 1 }
                     else if type == "Backhand" { backhandCount += 1 }
                     lastSwingType = type
