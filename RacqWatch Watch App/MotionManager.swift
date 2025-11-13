@@ -5,7 +5,8 @@
 // 10/28/2025 Update to modify classification structure to add new variables, rotational direction instead of facingForward/pitch only, smoothing and cooldown handling
 // 11/10/2025 Update to improve swing determination using change in acceleration instead of pure acceleration, 3 point smoothing instead of 5, 100 Hz rate, and new csv data
 // 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added, added workout session, modified type classificationa and limits
-// 11/12/2025 Updates to hopefully collect data consistently whether screen is on or off
+// 11/12/2025 Updates to hopefully collect data consistently whether screen is on or off, 7 sample moving average, modified code for forehand and backhand using peak values, added gyro req
+// 11/13/2025
 
 import Foundation
 import CoreMotion
@@ -227,7 +228,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         //let isForehand = (effectiveGyroZ > 40 && effectiveGyroY > 0 && effectiveYaw > yawThreshold)
         //let isBackhand = (effectiveGyroZ < -40 && effectiveGyroY < 0 && effectiveYaw < -yawThreshold)
         
-        // --- Magnitude smoothing (5-sample moving average) ---
+        // --- Magnitude smoothing (7-sample moving average) ---
         let rawMagnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
         magnitudeBuffer.append(rawMagnitude)
         if magnitudeBuffer.count > 7 { magnitudeBuffer.removeFirst() }
@@ -236,7 +237,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let accelDeltaLimit: Double = 1
         let smoothedMagnitudeLimit: Double = 2
         let RMSeffectiveGyroXY = sqrt(effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY)
-        let smoothedgyroLimit: Double = 15.0
+        let smoothedgyroLimit: Double = 12.0
         
         var accelDelta: Double = 0.0
         if magnitudeBuffer.count == 7 {
@@ -284,10 +285,10 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                     let duration = now.timeIntervalSince(start)
                     shotCount += 1
                     if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
-                        isForehand = true
+                        isBackhand = true
                         }
                     else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
-                        isBackhand = true
+                        isForehand = true
                         }
                     SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
                     let type = SwingState.pendingType
