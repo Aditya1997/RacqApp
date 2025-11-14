@@ -177,10 +177,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
     }
     
-    // MARK: - 🟩 3. Motion data freshness check
-    private var lastMotionTimestamp: TimeInterval = 0
-    
     // MARK: - Capture data (and unfreeze)
+    private var lastMotionTimestamp: TimeInterval = 0
     private var frozenFrameCount = 0
 
     private func captureMotionData() {
@@ -244,8 +242,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         if magnitudeBuffer.count > 4 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 1.0
-        let smoothedMagnitudeLimit: Double = 2.0
+        let accelDeltaLimit: Double = 0.9
+        let smoothedMagnitudeLimit: Double = 1.9
         let SQeffectiveGyroXY = effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY
         let smoothedgyroLimit: Double = 144.0
         
@@ -269,7 +267,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
         
         // adding minimum magnitude check
-        if rawMagnitude > 0.5   {
+        if rawMagnitude > 0.4   {
             // ✅ Swing start
             if !isSwinging {
                 if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && SQeffectiveGyroXY > smoothedgyroLimit { //
@@ -381,7 +379,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let fileName = "Session_\(Int(Date().timeIntervalSince1970)).csv"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         
-        var csv = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,wrist,isForehand,isBackhand\n" // 🟢 UPDATED header, 11/13 removed roll,pitch,yaw,facingForward,
+        var csv = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,roll,facingForward,wrist,isForehand,isBackhand\n" // 🟢 UPDATED header, 11/13 removed roll,pitch,yaw,facingForward,
         
         for e in dataLog {
             csv.append(
