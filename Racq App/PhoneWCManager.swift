@@ -23,6 +23,7 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
 
     // CSV file received from watch
     @Published var csvURL: URL?
+    @Published var summaryCSVURL: URL?
 
     private override init() {
         super.init()
@@ -100,12 +101,19 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
                 try fm.removeItem(at: dest)
             }
             try fm.copyItem(at: file.fileURL, to: dest)
-            DispatchQueue.main.async { // ✅ Critical fix
-                self.csvURL = dest
-                print("📄 CSV received and saved at: \(dest.path)")
+
+            DispatchQueue.main.async {
+                if dest.lastPathComponent.contains("SwingSummaries") {
+                    self.summaryCSVURL = dest     // <-- summary file
+                    print("📄 SUMMARY CSV received: \(dest.lastPathComponent)")
+                } else {
+                    self.csvURL = dest            // <-- session file
+                    print("📄 SESSION CSV received: \(dest.lastPathComponent)")
+                }
             }
+
         } catch {
-            print("❌ Failed to move CSV: \(error.localizedDescription)")
+            print("❌ Failed moving CSV: \(error.localizedDescription)")
         }
     }
 }

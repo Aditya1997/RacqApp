@@ -170,6 +170,10 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             WatchWCManager.shared.sendFileToPhone(fileURL)
         }
         
+        if let summaryURL = getSwingSummaryCSVFile() {
+            WatchWCManager.shared.sendFileToPhone(summaryURL)
+        }
+        
         func endWorkoutSession() {
             workoutSession?.end()
             workoutSession = nil
@@ -242,8 +246,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         if magnitudeBuffer.count > 4 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 0.9
-        let smoothedMagnitudeLimit: Double = 1.9
+        let accelDeltaLimit: Double = 0.9 // 1.1
+        let smoothedMagnitudeLimit: Double = 1.9 // 2.1
         let SQeffectiveGyroXY = effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY
         let smoothedgyroLimit: Double = 144.0
         
@@ -406,6 +410,14 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             print("❌ CSV export failed: \(error.localizedDescription)")
             return nil
         }
+    }
+    
+    // MARK: - SwingSummary Export
+    private func getSwingSummaryCSVFile() -> URL? {
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("SwingSummaries.csv")
+
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
     
     struct SwingSummary: Codable {

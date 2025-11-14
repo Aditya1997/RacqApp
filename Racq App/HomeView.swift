@@ -3,6 +3,7 @@
 //  RacqApp
 //  10/29/2025 updates for proper homeview
 //  11/13/2025 Adding swing summary tab
+
 import SwiftUI
 import UIKit
 
@@ -93,7 +94,7 @@ struct HomeView: View { // Renamed from ContentView
             .padding()
             .navigationTitle("Racq Tracker")
             .onAppear {
-                if let url = wc.csvURL {
+                if let url = wc.summaryCSVURL {
                     swings = loadSwingSummaryCSV(from: url)
                 }
             }
