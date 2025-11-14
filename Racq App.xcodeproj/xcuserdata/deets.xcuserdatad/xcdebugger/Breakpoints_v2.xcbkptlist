@@ -42,8 +42,8 @@
             filePath = "RacqWatch Watch App/MotionManager.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "324"
-            endingLineNumber = "324"
+            startingLineNumber = "331"
+            endingLineNumber = "331"
             landmarkName = "captureMotionData()"
             landmarkType = "7">
          </BreakpointContent>

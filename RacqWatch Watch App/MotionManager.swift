@@ -239,6 +239,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         
         // --- Magnitude smoothing (4-sample moving average) ---
         let rawMagnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
+        let gyroMagnitude = gyro.x*gyro.x + gyro.y*gyro.y + gyro.z*gyro.z
         magnitudeBuffer.append(rawMagnitude)
         if magnitudeBuffer.count > 4 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
@@ -263,6 +264,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             static var pendingType: String = ""
             static var peakGyroYPos: Double = 0.0
             static var peakGyroYNeg: Double = 0.0
+            static var peakGyroMagnitude: Double = 0.0
+            static var peakRMSGyroMagnitude: Double = 0.0
         }
         
         // adding minimum magnitude check
@@ -275,6 +278,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                     SwingState.startTime = now
                     SwingState.peakGyroYPos = effectiveGyroY
                     SwingState.peakGyroYNeg = effectiveGyroY
+                    SwingState.peakGyroMagnitude = gyroMagnitude
                     if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
                 }
             } else {
@@ -288,7 +292,9 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 if effectiveGyroY < SwingState.peakGyroYNeg {
                     SwingState.peakGyroYNeg = effectiveGyroY
                 }
-                
+                if gyroMagnitude > SwingState.peakGyroMagnitude {
+                    SwingState.peakGyroMagnitude = gyroMagnitude
+                }
                 // ✅ Swing end
                 if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
                     isSwinging = false
@@ -301,7 +307,6 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                             isForehand = true
                         }
                         SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
-                        shotCount += 1
                         let type = SwingState.pendingType
                         DispatchQueue.main.async {
                             self.shotCount += 1
@@ -310,12 +315,14 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                             self.lastSwingType = type
                             self.lastMagnitude = smoothedMagnitude
                         }
+                        SwingState.peakRMSGyroMagnitude = sqrt(SwingState.peakGyroMagnitude)
                         //if type == "Forehand" { forehandCount += 1 }
                         //else if type == "Backhand" { backhandCount += 1 }
                         //lastSwingType = type
                         //lastShotTime = now
                         let summary = SwingSummary(timestamp: now,
                                                    peakMagnitude: SwingState.peakMagnitude,
+                                                   peakRMSGyroMagnitude: SwingState.peakRMSGyroMagnitude,
                                                    duration: duration,
                                                    type: SwingState.type)
                         swingSummaries.append(summary)
@@ -323,6 +330,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                         // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", SwingState.type, SwingState.peakMagnitude, duration)) // NO MORE PRINTS
                     }
                     SwingState.peakMagnitude = 0.0
+                    SwingState.peakGyroMagnitude = 0.0
+                    SwingState.peakRMSGyroMagnitude = 0.0
                     SwingState.startTime = nil
                 }
             }
@@ -404,6 +413,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     struct SwingSummary: Codable {
         let timestamp: Date
         let peakMagnitude: Double
+        let peakRMSGyroMagnitude: Double
         let duration: Double
         let type: String
     }
@@ -411,12 +421,12 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     private var swingSummaries: [SwingSummary] = []
     
     private func appendSwingToCSV(_ summary: SwingSummary) {
-        let csvLine = "\(summary.timestamp),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.2f", summary.duration))\n"
+        let csvLine = "\(summary.timestamp),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakRMSGyroMagnitude)),\(String(format: "%.2f", summary.duration))\n"
         let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("SwingSummaries.csv")
         
         if !FileManager.default.fileExists(atPath: fileURL.path) {
-            let header = "Timestamp,Type,PeakMagnitude(g),Duration(s)\n"
+            let header = "Timestamp,Type,PeakMagnitude(g),PeakRMSGyroMagnitude(rad/s),Duration(s)\n"
             try? header.write(to: fileURL, atomically: true, encoding: .utf8)
         }
         
