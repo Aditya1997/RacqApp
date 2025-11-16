@@ -140,6 +140,7 @@ private struct SummaryCard: View {
                         .font(.headline)
                     Text("Avg Peak Acc: \(avgPeak(), specifier: "%.2f") g")
                     Text("Avg Peak Angular Velocity: \(peakRotVelocity(), specifier: "%.2f") rad/s")
+                    Text("Avg Peak Racket Head Velocity (estimated): \(peakRotVelocity()*(56+9.84)/17.6, specifier: "%.2f") rad/s")
                     Text("Avg Duration: \(avgDuration(), specifier: "%.2f") s")
                     Text("Total Swings: \(swings.count)")
                 }

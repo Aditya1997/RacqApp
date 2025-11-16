@@ -284,7 +284,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                     if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
                 }
             } else {
-                // Update running peak
+                // Update running peaks (can move this below swing end section)
                 if smoothedMagnitude > SwingState.peakMagnitude {
                     SwingState.peakMagnitude = smoothedMagnitude
                 }
@@ -326,7 +326,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                                                    peakMagnitude: SwingState.peakMagnitude,
                                                    peakRMSGyroMagnitude: SwingState.peakRMSGyroMagnitude,
                                                    duration: duration,
-                                                   type: SwingState.type)
+                                                   type: type)
                         swingSummaries.append(summary)
                         appendSwingToCSV(summary)
                         // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", SwingState.type, SwingState.peakMagnitude, duration)) // NO MORE PRINTS
