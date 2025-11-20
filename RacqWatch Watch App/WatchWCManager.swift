@@ -1,7 +1,7 @@
 //
 //  WatchWCManager.swift
 //  RacqWatch Watch App
-//
+//  11/19/2025 adding height variable and receiving it
 
 import Foundation
 import WatchConnectivity
@@ -9,6 +9,8 @@ import WatchConnectivity
 final class WatchWCManager: NSObject, WCSessionDelegate {
     static let shared = WatchWCManager()
     private override init() { super.init() }
+
+    var userHeight: Double = UserDefaults.standard.double(forKey: "userHeightInInches")
 
     func activateSession() {
         guard WCSession.isSupported() else { return }
@@ -34,6 +36,16 @@ final class WatchWCManager: NSObject, WCSessionDelegate {
         print("📤 queued file transfer: \(url.lastPathComponent)")
     }
 
+    func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
+        if let height = message["height"] as? Double {
+            DispatchQueue.main.async {
+                self.userHeight = height
+                UserDefaults.standard.set(height, forKey: "userHeightInInches")
+            }
+            print("📩 Watch received height: \(height)")
+        }
+    }
+    
     // MARK: delegate
     func session(_ session: WCSession,
                  activationDidCompleteWith activationState: WCSessionActivationState,

@@ -9,6 +9,7 @@
 // 11/13/2025 Updates to frequency down to 80 Hz, modification of prints and csv data, modifying the motion code, change queue
 // 11/19/2025 Updates to incorporate cooldown check and tighten limits slightly
 
+
 import Foundation
 import CoreMotion
 import Combine
@@ -32,6 +33,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     @Published var smoothedMagnitudeLimit: Double = 1.9
     @Published var hapticsEnabled: Bool = true
     @Published var isActive: Bool = false
+    @Published var userHeight: Double = 70.0   // default
+
     
     // 🟢 UPDATED: Separate counters and state tracking
     @Published var forehandCount: Int = 0

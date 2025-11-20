@@ -2,13 +2,15 @@
 //  WatchContentView.swift
 //  RacqWatch Watch App
 //
-//  Updated 10/30 to correct watch screen size
+//  10/30/2025 to correct watch screen size
+//  11/19/2025 adding height variable
 
 import SwiftUI
 
 struct WatchContentView: View {
     @ObservedObject var motionManager = MotionManager.shared
     @ObservedObject var healthManager = HealthManager.shared
+    @AppStorage("userHeightInInches") var userHeight: Double = 70.0
 
     @State private var startTime: Date?
     @State private var elapsedTime: TimeInterval = 0.0

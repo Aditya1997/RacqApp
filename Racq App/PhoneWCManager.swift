@@ -1,7 +1,8 @@
 //
 //  PhoneWCManager.swift
 //  RacqApp
-//  Updated 10/30 to reflect small updates to CSV importation and allow for phone app operation without watch
+//  10/30/2025 to reflect small updates to CSV importation and allow for phone app operation without watch
+//  11/19/2025 pushing height variable
 
 import Foundation
 import Combine
@@ -12,6 +13,7 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     static let shared = PhoneWCManager()
 
     @Published var isConnected: Bool = false
+    @Published var userHeight: Double = UserDefaults.standard.double(forKey: "userHeightInInches")
 
     // Summary data for dashboard
     @Published var summaryShotCount: Int = 0
@@ -73,11 +75,17 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String : Any]) {
+        if let height = message["height"] as? Double {
+            DispatchQueue.main.async {
+                self.userHeight = height
+            }
+            print("📩 Phone received height: \(height)")
+        }
         DispatchQueue.main.async {
             self.applySummary(message)
         }
     }
-
+    
     // MARK: - Handle Summary Data
     private func applySummary(_ dict: [String: Any]) {
         if let shots = dict["shotCount"] as? Int { summaryShotCount = shots }

@@ -3,9 +3,11 @@
 //  RacqApp
 //  10/29/2025 updates for proper homeview
 //  11/13/2025 Adding swing summary tab
+//  11/19/2025 Using height in swing speed calc
 
 import SwiftUI
 import UIKit
+import WatchConnectivity
 
 struct SwingSummaryCSV: Identifiable {
     let id = UUID()
@@ -63,9 +65,7 @@ struct HomeView: View { // Renamed from ContentView
                         .foregroundColor(.secondary)
                         .font(.subheadline)
                 }
-
                 Divider()
-
                 // SUMMARY (shown automatically when data arrives)
                 if wc.summaryTimestampISO.isEmpty {
                     VStack(spacing: 8) {
@@ -93,6 +93,8 @@ struct HomeView: View { // Renamed from ContentView
             .padding()
             .navigationTitle("Racq Tracker")
             .onAppear {
+                let userHeight = UserDefaults.standard.double(forKey: "userHeightInInches")
+                WCSession.default.sendMessage(["height": userHeight], replyHandler: nil)
                 if let url = wc.summaryCSVURL {
                     swings = loadSwingSummaryCSV(from: url)
                 }
@@ -111,9 +113,23 @@ private struct SummaryCard: View {
     let forehandCount: Int
     let backhandCount: Int
     let swings: [SwingSummaryCSV]
-    
+       
+    @AppStorage("userHeightInInches") var userHeight: Double = 70.0
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Player Height")
+                    .font(.headline)
+                HStack {
+                    Slider(value: $userHeight, in: 55...80, step: 1)
+                    Text("\(Int(userHeight)) in")
+                        .frame(width: 50)
+                }
+                .onChange(of: userHeight) { newValue in
+                    WCSession.default.sendMessage(["height": newValue], replyHandler: {_ in })
+                }
+            }
             Text("Session Summary")
                 .font(.title2).bold()
             HStack {
@@ -139,7 +155,7 @@ private struct SummaryCard: View {
                         .font(.headline)
                     Text("Avg Peak Acc: \(avgPeak(), specifier: "%.2f") g")
                     Text("Avg Peak Angular Velocity: \(peakRotVelocity(), specifier: "%.2f") rad/s")
-                    Text("Avg Peak Racket Head Velocity (estimated): \(peakRotVelocity()*(21+9.84)/17.6, specifier: "%.2f") mph")
+                    Text("Avg Peak Racket Head Velocity (estimated): \(String(format: "%.2f", peakRotVelocity() * ((userHeight * 0.38) + 10) / 17.6)) mph")
                     Text("Avg Duration: \(avgDuration(), specifier: "%.2f") s")
                     //Text("Total Swings: \(swings.count)")
                 }
