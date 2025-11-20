@@ -7,6 +7,7 @@
 // 11/11/2025 Switched to Coremotion timer, updated sensitivity, variables added, added workout session, modified type classificationa and limits
 // 11/12/2025 Updates to hopefully collect data consistently whether screen is on or off, 7 sample moving average, modified code for forehand and backhand using peak values, added gyro req
 // 11/13/2025 Updates to frequency down to 80 Hz, modification of prints and csv data, modifying the motion code, change queue
+// 11/19/2025 Updates to incorporate cooldown check and tighten limits slightly
 
 import Foundation
 import CoreMotion
@@ -28,17 +29,13 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     
     @Published var lastMagnitude: Double = 0.0
     @Published var shotCount: Int = 0
-    @Published var motionSensitivity: Double = 2.2
+    @Published var smoothedMagnitudeLimit: Double = 1.9
     @Published var hapticsEnabled: Bool = true
     @Published var isActive: Bool = false
     
     // 🟢 UPDATED: Separate counters and state tracking
     @Published var forehandCount: Int = 0
     @Published var backhandCount: Int = 0
-    @Published var lastGyroZ: Double = 0.0
-    @Published var lastYaw: Double = 0.0
-    @Published var lastPitch: Double = 0.0
-    @Published var lastRoll: Double = 0.0
     @Published var lastSwingType: String = "None"
     
     // Peak detection
@@ -191,7 +188,6 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         // 🟩 Detect frozen motion data
         if data.timestamp == lastMotionTimestamp {
             frozenFrameCount += 1
-
             if frozenFrameCount >= 5 {
                 print("⚠️ Motion frozen for 5 frames — restarting deviceMotion")
                 frozenFrameCount = 0
@@ -271,7 +267,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
         
         // adding minimum magnitude check
-        if rawMagnitude > 0.4   {
+        if rawMagnitude > 1.0   {
             // ✅ Swing start
             if !isSwinging {
                 if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && SQeffectiveGyroXY > smoothedgyroLimit { //
@@ -300,36 +296,35 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 // ✅ Swing end
                 if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
                     isSwinging = false
-                    if let start = SwingState.startTime {
-                        let duration = now.timeIntervalSince(start)
-                        if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
-                            isBackhand = true
+                    if now.timeIntervalSince(lastShotTime) > shotCooldown {     // cooldown check passed
+                        if let start = SwingState.startTime {
+                            let duration = now.timeIntervalSince(start)
+                            if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
+                                isBackhand = true
+                            }
+                            else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
+                                isForehand = true
+                            }
+                            SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
+                            let type = SwingState.pendingType
+                            DispatchQueue.main.async {
+                                self.shotCount += 1
+                                if type == "Forehand" { self.forehandCount += 1 }
+                                if type == "Backhand" { self.backhandCount += 1 }
+                                self.lastSwingType = type
+                                self.lastMagnitude = smoothedMagnitude
+                            }
+                            SwingState.peakRMSGyroMagnitude = sqrt(SwingState.peakGyroMagnitude)
+                            lastShotTime = now
+                            let summary = SwingSummary(timestamp: now,
+                                                       peakMagnitude: SwingState.peakMagnitude,
+                                                       peakRMSGyroMagnitude: SwingState.peakRMSGyroMagnitude,
+                                                       duration: duration,
+                                                       type: type)
+                            swingSummaries.append(summary)
+                            appendSwingToCSV(summary)
+                            // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", SwingState.type, SwingState.peakMagnitude, duration)) // NO MORE PRINTS
                         }
-                        else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
-                            isForehand = true
-                        }
-                        SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
-                        let type = SwingState.pendingType
-                        DispatchQueue.main.async {
-                            self.shotCount += 1
-                            if type == "Forehand" { self.forehandCount += 1 }
-                            if type == "Backhand" { self.backhandCount += 1 }
-                            self.lastSwingType = type
-                            self.lastMagnitude = smoothedMagnitude
-                        }
-                        SwingState.peakRMSGyroMagnitude = sqrt(SwingState.peakGyroMagnitude)
-                        //if type == "Forehand" { forehandCount += 1 }
-                        //else if type == "Backhand" { backhandCount += 1 }
-                        //lastSwingType = type
-                        //lastShotTime = now
-                        let summary = SwingSummary(timestamp: now,
-                                                   peakMagnitude: SwingState.peakMagnitude,
-                                                   peakRMSGyroMagnitude: SwingState.peakRMSGyroMagnitude,
-                                                   duration: duration,
-                                                   type: type)
-                        swingSummaries.append(summary)
-                        appendSwingToCSV(summary)
-                        // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", SwingState.type, SwingState.peakMagnitude, duration)) // NO MORE PRINTS
                     }
                     SwingState.peakMagnitude = 0.0
                     SwingState.peakGyroMagnitude = 0.0

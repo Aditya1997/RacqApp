@@ -15,17 +15,17 @@ import Combine
 final class WatchSettings: ObservableObject {
     static let shared = WatchSettings()
 
-    @AppStorage("motionSensitivity") var motionSensitivity: Double = 0.5   // 0.1 ... 1.0
+    @AppStorage("smoothedMagnitudeLimit") var smoothedMagnitudeLimit: Double = 1.9   // 0.1 ... 3.0
     @AppStorage("hapticsEnabled")    var hapticsEnabled: Bool   = true
     @AppStorage("hrEnabled")         var hrEnabled: Bool        = false
 
     /// Apply payload coming from iPhone Settings
     func apply(payload: [String: String]) {
-        if let s = payload["motionSensitivity"], let v = Double(s) { motionSensitivity = v }
+        if let s = payload["smoothedMagnitudeLimit"], let v = Double(s) { smoothedMagnitudeLimit = v }
         if let s = payload["hapticsEnabled"], let v = Bool(s)      { hapticsEnabled = v }
         if let s = payload["hrEnabled"], let v = Bool(s)           { hrEnabled = v }
         objectWillChange.send()
-        print("⚙️ Watch settings updated: sensitivity=\(motionSensitivity), haptics=\(hapticsEnabled), hr=\(hrEnabled)")
+        print("⚙️ Watch settings updated: sensitivity=\(smoothedMagnitudeLimit), haptics=\(hapticsEnabled), hr=\(hrEnabled)")
     }
 }
 

@@ -28,7 +28,7 @@ struct DebugOverlayView: View {
 
                     Text("Shots: \(motionManager.shotCount)")
                     Text(String(format: "Magnitude: %.2f", motionManager.lastMagnitude))
-                    Text("Sensitivity: \(motionManager.motionSensitivity, specifier: "%.2f")")
+                    Text("Sensitivity: \(motionManager.smoothedMagnitudeLimit, specifier: "%.2f")")
                     Text("Active: \(motionManager.isActive ? "Yes" : "No")")
 
                     Button("Reset Shots") {
