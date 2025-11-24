@@ -8,6 +8,7 @@
 import SwiftUI
 import CoreData
 import FirebaseCore
+import FirebaseAuth
 
 @main
 struct Racq_AppApp: App {
@@ -17,12 +18,25 @@ struct Racq_AppApp: App {
         // ✅ Force the WCSession manager to initialize immediately
         _ = PhoneWCManager.shared
         FirebaseApp.configure()
+        ensureFirebaseAuth()
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
+        }
+    }
+    
+    func ensureFirebaseAuth() {
+        if Auth.auth().currentUser == nil {
+            Auth.auth().signInAnonymously { result, error in
+                if let error = error {
+                    print("❌ Firebase Auth error: \(error.localizedDescription)")
+                } else {
+                    print("✅ Signed in anonymously with UID: \(result?.user.uid ?? "")")
+                }
+            }
         }
     }
 }
