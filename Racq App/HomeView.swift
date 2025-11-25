@@ -56,7 +56,6 @@ struct HomeView: View { // Renamed from ContentView
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
-
                 // connection pill
                 HStack(spacing: 8) {
                     Circle().fill(wc.isConnected ? Color.green : Color.red)
@@ -65,6 +64,10 @@ struct HomeView: View { // Renamed from ContentView
                         .foregroundColor(.secondary)
                         .font(.subheadline)
                 }
+                Divider()
+                // PLAYER HEIGHT SECTION (always visible)
+                PlayerHeightView()
+
                 Divider()
                 // SUMMARY (shown automatically when data arrives)
                 if wc.summaryTimestampISO.isEmpty {
@@ -82,10 +85,10 @@ struct HomeView: View { // Renamed from ContentView
                         durationSec: wc.summaryDurationSec,
                         heartRate: wc.summaryHeartRate,
                         csvURL: wc.csvURL,
-                        // 🟢 NEW:
                         forehandCount: wc.summaryforehandCount,
                         backhandCount: wc.summarybackhandCount,
-                        swings: swings
+                        swings: swings,
+                        userHeight: wc.userHeight
                     )
                 }
                 Spacer()
@@ -103,6 +106,28 @@ struct HomeView: View { // Renamed from ContentView
     }
 }
 
+// MARK: - Player Height Slider
+
+struct PlayerHeightView: View {
+    @AppStorage("userHeightInInches") var userHeight: Double = 70
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Player Height")
+                .font(.headline)
+
+            HStack {
+                Slider(value: $userHeight, in: 55...80, step: 1)
+                Text("\(Int(userHeight)) in")
+                    .frame(width: 50)
+            }
+            .onChange(of: userHeight) { newValue in
+                WCSession.default.sendMessage(["height": newValue], replyHandler: nil)
+            }
+        }
+    }
+}
+
 // MARK: - Summary Card
 private struct SummaryCard: View {
     let shots: Int
@@ -113,25 +138,14 @@ private struct SummaryCard: View {
     let forehandCount: Int
     let backhandCount: Int
     let swings: [SwingSummaryCSV]
+    let userHeight: Double
        
-    @AppStorage("userHeightInInches") var userHeight: Double = 70.0
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Player Height")
-                    .font(.headline)
-                HStack {
-                    Slider(value: $userHeight, in: 55...80, step: 1)
-                    Text("\(Int(userHeight)) in")
-                        .frame(width: 50)
-                }
-                .onChange(of: userHeight) { newValue in
-                    WCSession.default.sendMessage(["height": newValue], replyHandler: {_ in })
-                }
-            }
+            
             Text("Session Summary")
                 .font(.title2).bold()
+            
             HStack {
                 stat(title: "Shots", value: "\(shots)")
                 Spacer()
@@ -148,14 +162,17 @@ private struct SummaryCard: View {
                stat(title: "Backhands", value: "\(backhandCount)")
                    .foregroundColor(.cyan)
            }
+            
             if !swings.isEmpty {
                 Divider()
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Swing Details")
                         .font(.headline)
-                    Text("Avg Peak Acc: \(avgPeak(), specifier: "%.2f") g")
-                    Text("Avg Peak Angular Velocity: \(peakRotVelocity(), specifier: "%.2f") rad/s")
-                    Text("Avg Peak Racket Head Velocity (estimated): \(String(format: "%.2f", peakRotVelocity() * ((userHeight * 0.38) + 10) / 17.6)) mph")
+                    Text("Avg Peak Acc: \(avgPeakAcc(), specifier: "%.2f") g")
+                    Text("Avg Peak Angular Velocity: \(avgPeakRotVelocity(), specifier: "%.2f") rad/s")
+                    Text("Avg Peak Racket Head Velocity (estimated): \(String(format: "%.2f", avgPeakRotVelocity() * ((userHeight * 0.38) + 10) / 17.6)) mph")
+                    Text("Maximum Angular Velocity: \(peakRotVelocity(), specifier: "%.2f") rad/s")
+                    Text("Maximum Racket Head Velocity (estimated): \(String(format: "%.2f", peakRotVelocity() * ((userHeight * 0.38) + 10) / 17.6)) mph")
                     Text("Avg Duration: \(avgDuration(), specifier: "%.2f") s")
                     //Text("Total Swings: \(swings.count)")
                 }
@@ -190,9 +207,19 @@ private struct SummaryCard: View {
         return swings.map { $0.peakGyro }.max() ?? 0
     }
     
-    private func avgPeak() -> Double {
+    private func avgPeakRotVelocity() -> Double {
+        guard !swings.isEmpty else { return 0 }
+        return swings.map { $0.peakGyro }.reduce(0, +) / Double(swings.count)
+    }
+    
+    private func avgPeakAcc() -> Double {
         guard !swings.isEmpty else { return 0 }
         return swings.map { $0.peak }.reduce(0, +) / Double(swings.count)
+    }
+    
+    private func peakAcc() -> Double {
+        guard !swings.isEmpty else { return 0 }
+        return swings.map { $0.peak }.max() ?? 0
     }
 
     private func avgDuration() -> Double {
