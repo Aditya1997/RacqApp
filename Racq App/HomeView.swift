@@ -88,7 +88,6 @@ struct HomeView: View { // Renamed from ContentView
                         forehandCount: wc.summaryforehandCount,
                         backhandCount: wc.summarybackhandCount,
                         swings: swings,
-                        userHeight: wc.userHeight
                     )
                 }
                 Spacer()
@@ -138,8 +137,8 @@ private struct SummaryCard: View {
     let forehandCount: Int
     let backhandCount: Int
     let swings: [SwingSummaryCSV]
-    let userHeight: Double
-       
+    @AppStorage("userHeightInInches") private var userHeight: Double = 70
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             
@@ -170,9 +169,9 @@ private struct SummaryCard: View {
                         .font(.headline)
                     Text("Avg Peak Acc: \(avgPeakAcc(), specifier: "%.2f") g")
                     Text("Avg Peak Angular Velocity: \(avgPeakRotVelocity(), specifier: "%.2f") rad/s")
-                    Text("Avg Peak Racket Head Velocity (estimated): \(String(format: "%.2f", avgPeakRotVelocity() * ((userHeight * 0.38) + 10) / 17.6)) mph")
+                    Text("Avg Peak Racket Head Velocity (estimated): \(String(format: "%.2f", avgPeakRotVelocity() * ((userHeight * 0.38) + 11.5) / 17.6)) mph")
                     Text("Maximum Angular Velocity: \(peakRotVelocity(), specifier: "%.2f") rad/s")
-                    Text("Maximum Racket Head Velocity (estimated): \(String(format: "%.2f", peakRotVelocity() * ((userHeight * 0.38) + 10) / 17.6)) mph")
+                    Text("Maximum Racket Head Velocity (estimated): \(String(format: "%.2f", peakRotVelocity() * ((userHeight * 0.38) + 11.5) / 17.6)) mph")
                     Text("Avg Duration: \(avgDuration(), specifier: "%.2f") s")
                     //Text("Total Swings: \(swings.count)")
                 }
