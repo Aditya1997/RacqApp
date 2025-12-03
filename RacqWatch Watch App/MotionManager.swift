@@ -138,7 +138,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             //}
         }
         
-        print("✅ Started motion updates at 100 Hz.")
+        print("✅ Started motion updates at 80 Hz.")
     }
     
     // MARK: - Stop + export + notify phone (11/11 removed timer)
@@ -350,12 +350,13 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             isForehand: isForehand,
             isBackhand: isBackhand
         )
-        //dataLog.append(record)
+        
+        dataLog.append(record)
 
-        if now.timeIntervalSince(lastCSVLogTime) > 0.05 {   // log at 20Hz, not 80Hz
-            dataLog.append(record)
-            lastCSVLogTime = now
-        }
+        //if now.timeIntervalSince(lastCSVLogTime) > 0.05 {   // log at 20Hz, not 80Hz
+        //    dataLog.append(record)
+        //    lastCSVLogTime = now
+        //}
         
         // UNUSED NO MORE PRINTS
         //print(String(format: "🎾 %@ | %@ | Mag: %.3f | Peak: %.3f",
