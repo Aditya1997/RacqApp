@@ -25,6 +25,7 @@ struct Racq_AppApp: App {
         WindowGroup {
             ContentView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
+                .preferredColorScheme(.dark)   // Dark Mode
         }
     }
     

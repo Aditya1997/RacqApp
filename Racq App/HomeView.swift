@@ -135,6 +135,20 @@ struct HomeView: View { // Renamed from ContentView
                         Text("Latest Session")
                             .font(.headline)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        Image("tennis_court")
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 180)
+                            .clipped()
+                            .cornerRadius(16)
+                            .overlay(
+                                LinearGradient(
+                                    colors: [.black.opacity(0.4), .clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .padding(.horizontal)
                         LazyVGrid(
                             columns: [
                                 GridItem(.flexible(), spacing: 16),
