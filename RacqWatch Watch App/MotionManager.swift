@@ -27,34 +27,35 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     
     private let motionManager = CMMotionManager()
     private var dataLog: [MotionData] = []
-    
-    @Published var lastMagnitude: Double = 0.0
-    @Published var shotCount: Int = 0
-    @Published var smoothedMagnitudeLimit: Double = 1.9
-    @Published var hapticsEnabled: Bool = true
-    @Published var isActive: Bool = false
-    @Published var userHeight: Double = 70.0   // default
 
-    
-    // 🟢 UPDATED: Separate counters and state tracking
+    // 🟢 UPDATED: Published variables - separate counters and state tracking
+    @Published var isActive: Bool = false
+    @Published var shotCount: Int = 0
     @Published var forehandCount: Int = 0
     @Published var backhandCount: Int = 0
     @Published var lastSwingType: String = "None"
     
     // Peak detection
+    private(set) var lastMagnitude: Double = 0.0
+    private(set) var smoothedMagnitudeLimit: Double = 1.2
+    private(set) var hapticsEnabled: Bool = true
+    //@Published var userHeight: Double = 70.0   // default
+    
+    // Swing detection and duration tracking
     private var isSwinging = false
     private var lastShotTime: Date = .distantPast
     private let shotCooldown: TimeInterval = 0.4
-    
-    // Duration tracking
     private var sessionStart: Date?
     private var lastCSVLogTime = Date()
     
     // 🟢 UPDATED: Smoothing buffer
     private var magnitudeBuffer: [Double] = []
-    
+    private var accelDeltaBuffer: [Double] = []
+
     override init() {
         super.init()
+        backgroundQueue.maxConcurrentOperationCount = 1
+        backgroundQueue.qualityOfService = .userInitiated
         WatchWCManager.shared.activateSession()
     }
     
@@ -128,16 +129,14 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 
         
         // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
-
+        motionManager.showsDeviceMovementDisplay = false
         motionManager.deviceMotionUpdateInterval = 1.0 / 80.0
-
         motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
                                                to: backgroundQueue) { [weak self] _, _ in
             //Task { @MainActor in
                 self?.captureMotionData()
             //}
         }
-        
         print("✅ Started motion updates at 80 Hz.")
     }
     
@@ -245,14 +244,19 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         if magnitudeBuffer.count > 4 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        let accelDeltaLimit: Double = 0.9 // 1.1
-        let smoothedMagnitudeLimit: Double = 1.9 // 2.1
+        // adding new array to manage accelDelta
+        accelDeltaBuffer.append(rawMagnitude)
+        if accelDeltaBuffer.count > 7 { accelDeltaBuffer.removeFirst() }
+        let accelDeltaLimit: Double = 0.8 //
+        let smoothedMagnitudeLimit: Double = 1.2 // 1.9
         let SQeffectiveGyroXY = effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY
-        let smoothedgyroLimit: Double = 144.0
+        let smoothedgyroLimit: Double = 42 // 144
+        let rawMagnitudeLimit: Double = 4 // 1.9
+
         
         var accelDelta: Double = 0.0
-        if magnitudeBuffer.count == 4 {
-            accelDelta = magnitudeBuffer.last!-magnitudeBuffer.first!
+        if accelDeltaBuffer.count == 7 {
+            accelDelta = accelDeltaBuffer.last!-accelDeltaBuffer.first!
         }
         
         let now = Date()
@@ -269,11 +273,11 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             static var peakRMSGyroMagnitude: Double = 0.0
         }
         
-        // adding minimum magnitude check
-        if rawMagnitude > 1.0   {
+        // adding minimum magnitude check	
+        if rawMagnitude > 0.6   {
             // ✅ Swing start
             if !isSwinging {
-                if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && SQeffectiveGyroXY > smoothedgyroLimit { //
+                if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && SQeffectiveGyroXY > smoothedgyroLimit && rawMagnitude > rawMagnitudeLimit { //
                     isSwinging = true
                     SwingState.peakMagnitude = smoothedMagnitude
                     SwingState.startTime = now
@@ -315,7 +319,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                                 if type == "Forehand" { self.forehandCount += 1 }
                                 if type == "Backhand" { self.backhandCount += 1 }
                                 self.lastSwingType = type
-                                self.lastMagnitude = smoothedMagnitude
+                                //self.lastMagnitude = smoothedMagnitude
                             }
                             SwingState.peakRMSGyroMagnitude = sqrt(SwingState.peakGyroMagnitude)
                             lastShotTime = now
@@ -368,6 +372,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     // MARK: - 🟩 4. Restart motion stream if frozen
     private func restartDeviceMotion() {
         motionManager.stopDeviceMotionUpdates()
+        motionManager.showsDeviceMovementDisplay = false
         motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
                                                to: backgroundQueue) { [weak self] motion, error in
             guard let self = self, let motion = motion else { return }

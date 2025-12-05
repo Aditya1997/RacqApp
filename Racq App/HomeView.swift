@@ -97,7 +97,13 @@ struct HomeView: View { // Renamed from ContentView
             .onAppear {
                 let userHeight = UserDefaults.standard.double(forKey: "userHeightInInches")
                 WCSession.default.sendMessage(["height": userHeight], replyHandler: nil)
+
                 if let url = wc.summaryCSVURL {
+                    swings = loadSwingSummaryCSV(from: url)
+                }
+            }
+            .onChange(of: wc.summaryCSVURL) { newURL in
+                if let url = newURL {
                     swings = loadSwingSummaryCSV(from: url)
                 }
             }

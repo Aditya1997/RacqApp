@@ -27,7 +27,6 @@ struct DebugOverlayView: View {
                         .font(.headline)
 
                     Text("Shots: \(motionManager.shotCount)")
-                    Text(String(format: "Magnitude: %.2f", motionManager.lastMagnitude))
                     Text("Sensitivity: \(motionManager.smoothedMagnitudeLimit, specifier: "%.2f")")
                     Text("Active: \(motionManager.isActive ? "Yes" : "No")")
 
