@@ -17,21 +17,21 @@ struct ContentView: View {
                 }
 
             // 🎯 RECORD (you can swap in RecordView.swift here)
-            RecordView()
+            SessionView()
                 .tabItem {
-                    Label("Record", systemImage: "record.circle")
+                    Label("Sessions", systemImage: "record.circle")
                 }
 
             // 👥 COMMUNITY TAB
             CommunityView()
                 .tabItem {
-                    Label("Community", systemImage: "person.3.fill")
+                    Label("Groups", systemImage: "person.3.fill")
                 }
 
             // ⚙️ SETTINGS
-            SettingsView()
+            ProfileView()
                 .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
+                    Label("Profile", systemImage: "person.fill")
                 }
         }
     }

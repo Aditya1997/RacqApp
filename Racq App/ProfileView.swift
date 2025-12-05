@@ -5,7 +5,7 @@
 
 import SwiftUI
 
-struct SettingsView: View {
+struct ProfileView: View {
     @ObservedObject var wc = PhoneWCManager.shared
 
     var body: some View {
@@ -92,5 +92,5 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView()
+    ProfileView()
 }
