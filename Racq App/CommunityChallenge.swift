@@ -8,9 +8,11 @@
 import Foundation
 
 struct Challenge: Identifiable, Codable {
-    var id: String
+    var id: String?
     var title: String
     var goal: Int
     var progress: Int
-    var participants: [String: Int] // name : progress
+    var participants: [String: Int]
+    var sponsor: String?
+    var updatedAt: Date
 }

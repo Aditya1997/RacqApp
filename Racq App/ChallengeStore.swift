@@ -33,13 +33,20 @@ final class ChallengeStore: ObservableObject {   // <-- must be a class (not str
                     let goal = data["goal"] as? Int,
                     let progress = data["progress"] as? Int
                 else { return nil }
+                
+                //Optional fields
                 let participants = data["participants"] as? [String: Int] ?? [:]
+                let sponsor = data["sponsor"] as? String
+                let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
+                
                 return Challenge(
                     id: doc.documentID,
                     title: title,
                     goal: goal,
                     progress: progress,
-                    participants: participants
+                    participants: participants,
+                    sponsor: sponsor,
+                    updatedAt: updatedAt
                 )
             }
             print("✅ Loaded \(self.challenges.count) challenges")
@@ -50,11 +57,14 @@ final class ChallengeStore: ObservableObject {   // <-- must be a class (not str
 
     func addChallenge(_ challenge: Challenge) async {
         do {
-            try await db.collection("challenges").document(challenge.id).setData([
+            let docID = challenge.id ?? UUID().uuidString
+            try await db.collection("challenges").document(docID).setData([
                 "title": challenge.title,
                 "goal": challenge.goal,
                 "progress": challenge.progress,
-                "participants": challenge.participants
+                "participants": challenge.participants,
+                "sponsor": challenge.sponsor,
+                "updatedAt": Date()
             ])
         } catch {
             print("Error saving challenge: \(error)")
