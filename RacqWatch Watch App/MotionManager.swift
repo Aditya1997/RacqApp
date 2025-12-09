@@ -84,8 +84,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let heartRate: Double?
         // Orientation tracking
         let roll: Double
-        //let pitch: Double
-        //let yaw: Double
+        let pitch: Double
+        let yaw: Double
         // 🟢 UPDATED: keep for logging, not used in classification
         let facingForward: Bool
         let wrist: String
@@ -210,8 +210,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         
         // UNUSED
         let rollDeg  = attitude.roll  * 180.0 / .pi
-        //let pitchDeg = attitude.pitch * 180.0 / .pi
-        //let yawDeg   = attitude.yaw   * 180.0 / .pi
+        let pitchDeg = attitude.pitch * 180.0 / .pi
+        let yawDeg   = attitude.yaw   * 180.0 / .pi
         
         let gyroXDeg = gyro.x * 180.0 / .pi
         let gyroYDeg = gyro.y * 180.0 / .pi
@@ -348,7 +348,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             accX: acc.x, accY: acc.y, accZ: acc.z,
             gyroX: gyro.x, gyroY: gyro.y, gyroZ: gyro.z,
             heartRate: HealthManager.shared.heartRate,
-            roll: rollDeg, //pitch: pitchDeg, yaw: yawDeg,
+            roll: rollDeg,
+            pitch: pitchDeg, yaw: yawDeg,
             facingForward: abs(rollDeg) > 0,
             wrist: wristSide,
             isForehand: isForehand,
@@ -397,7 +398,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 + "\(e.gyroX),\(e.gyroY),\(e.gyroZ),"
                 + "\(e.heartRate ?? 0),"
                 + "\(e.roll),"
-                //+\(e.pitch),\(e.yaw),"
+                + "\(e.pitch),\(e.yaw),"
                 + "\(e.facingForward),"
                 + "\(e.wrist),"
                 + "\(e.isForehand),"
