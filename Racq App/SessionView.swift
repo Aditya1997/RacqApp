@@ -257,7 +257,7 @@ private struct SummaryCard: View {
                     Text("Maximum Angular Velocity: \(peakRotVelocity(), specifier: "%.2f") rad/s")
                     Text("Maximum RH Velocity (est): \(String(format: "%.2f", SwingMath.maxRHSpeed(swings: swings, height: userHeight))) mph")
                     Text("Avg Duration: \(avgDuration(), specifier: "%.2f") s")
-                    //Text("Total Swings: \(swings.count)")
+                    Text("Total Swings: \(swings.count)")
                 }
             }
             if let url = csvURL {

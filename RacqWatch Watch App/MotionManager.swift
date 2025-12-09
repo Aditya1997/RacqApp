@@ -8,7 +8,7 @@
 // 11/12/2025 Updates to hopefully collect data consistently whether screen is on or off, 7 sample moving average, modified code for forehand and backhand using peak values, added gyro req
 // 11/13/2025 Updates to frequency down to 80 Hz, modification of prints and csv data, modifying the motion code, change queue
 // 11/19/2025 Updates to incorporate cooldown check and tighten limits slightly
-
+// 12/9/2025 Added lock to swing end
 
 import Foundation
 import CoreMotion
@@ -43,11 +43,12 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     
     // Swing detection and duration tracking
     private var isSwinging = false
+    private var swingFinishedLock = false
     private var lastShotTime: Date = .distantPast
     private let shotCooldown: TimeInterval = 0.4
     private var sessionStart: Date?
     private var lastCSVLogTime = Date()
-    
+
     // 🟢 UPDATED: Smoothing buffer
     private var magnitudeBuffer: [Double] = []
     private var accelDeltaBuffer: [Double] = []
@@ -279,6 +280,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             if !isSwinging {
                 if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && SQeffectiveGyroXY > smoothedgyroLimit && rawMagnitude > rawMagnitudeLimit { //
                     isSwinging = true
+                    swingFinishedLock = false   // swing lock to prevent extra counts
                     SwingState.peakMagnitude = smoothedMagnitude
                     SwingState.startTime = now
                     SwingState.peakGyroYPos = effectiveGyroY
@@ -302,41 +304,44 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 }
                 // ✅ Swing end
                 if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
-                    isSwinging = false
-                    if now.timeIntervalSince(lastShotTime) > shotCooldown {     // cooldown check passed
-                        if let start = SwingState.startTime {
-                            let duration = now.timeIntervalSince(start)
-                            if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
-                                isBackhand = true
+                    if !swingFinishedLock {
+                        swingFinishedLock = true
+                        isSwinging = false
+                        if now.timeIntervalSince(lastShotTime) > shotCooldown {     // cooldown check passed
+                            if let start = SwingState.startTime {
+                                let duration = now.timeIntervalSince(start)
+                                if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
+                                    isBackhand = true
+                                }
+                                else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
+                                    isForehand = true
+                                }
+                                SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
+                                let type = SwingState.pendingType
+                                DispatchQueue.main.async {
+                                    self.shotCount += 1
+                                    if type == "Forehand" { self.forehandCount += 1 }
+                                    if type == "Backhand" { self.backhandCount += 1 }
+                                    self.lastSwingType = type
+                                    //self.lastMagnitude = smoothedMagnitude
+                                }
+                                SwingState.peakRMSGyroMagnitude = sqrt(SwingState.peakGyroMagnitude)
+                                lastShotTime = now
+                                let summary = SwingSummary(timestamp: now,
+                                                           peakMagnitude: SwingState.peakMagnitude,
+                                                           peakRMSGyroMagnitude: SwingState.peakRMSGyroMagnitude,
+                                                           duration: duration,
+                                                           type: type)
+                                swingSummaries.append(summary)
+                                appendSwingToCSV(summary)
+                                // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", SwingState.type, SwingState.peakMagnitude, duration)) // NO MORE PRINTS
                             }
-                            else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
-                                isForehand = true
-                            }
-                            SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
-                            let type = SwingState.pendingType
-                            DispatchQueue.main.async {
-                                self.shotCount += 1
-                                if type == "Forehand" { self.forehandCount += 1 }
-                                if type == "Backhand" { self.backhandCount += 1 }
-                                self.lastSwingType = type
-                                //self.lastMagnitude = smoothedMagnitude
-                            }
-                            SwingState.peakRMSGyroMagnitude = sqrt(SwingState.peakGyroMagnitude)
-                            lastShotTime = now
-                            let summary = SwingSummary(timestamp: now,
-                                                       peakMagnitude: SwingState.peakMagnitude,
-                                                       peakRMSGyroMagnitude: SwingState.peakRMSGyroMagnitude,
-                                                       duration: duration,
-                                                       type: type)
-                            swingSummaries.append(summary)
-                            appendSwingToCSV(summary)
-                            // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", SwingState.type, SwingState.peakMagnitude, duration)) // NO MORE PRINTS
                         }
+                        SwingState.peakMagnitude = 0.0
+                        SwingState.peakGyroMagnitude = 0.0
+                        SwingState.peakRMSGyroMagnitude = 0.0
+                        SwingState.startTime = nil
                     }
-                    SwingState.peakMagnitude = 0.0
-                    SwingState.peakGyroMagnitude = 0.0
-                    SwingState.peakRMSGyroMagnitude = 0.0
-                    SwingState.startTime = nil
                 }
             }
         }
@@ -434,7 +439,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     }
     
     private var swingSummaries: [SwingSummary] = []
-    
+
     private func appendSwingToCSV(_ summary: SwingSummary) {
         let csvLine = "\(summary.timestamp),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakRMSGyroMagnitude)),\(String(format: "%.2f", summary.duration))\n"
         let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
