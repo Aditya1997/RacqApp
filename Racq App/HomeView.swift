@@ -206,6 +206,7 @@ struct HomeView: View { // Renamed from ContentView
             }
             .padding()
             .navigationTitle("Racq Tracker")
+            .navigationBarTitleDisplayMode(.inline)  // FIXES OVERLAP
             .onAppear {
                 let userHeight = UserDefaults.standard.double(forKey: "userHeightInInches")
                 WCSession.default.sendMessage(["height": userHeight], replyHandler: nil)
@@ -255,16 +256,17 @@ private func summaryCard(
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(.white)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.5)
 
             Text(title)
                 .font(.caption)
                 .foregroundColor(.white.opacity(0.85))
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .padding()
     }
-    .frame(height: 120)
+    .frame(height: 135)
 }
 
 // MARK: - Player Height Slider
