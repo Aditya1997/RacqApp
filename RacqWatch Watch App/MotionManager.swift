@@ -8,7 +8,7 @@
 // 11/12/2025 Updates to hopefully collect data consistently whether screen is on or off, 7 sample moving average, modified code for forehand and backhand using peak values, added gyro req
 // 11/13/2025 Updates to frequency down to 80 Hz, modification of prints and csv data, modifying the motion code, change queue
 // 11/19/2025 Updates to incorporate cooldown check and tighten limits slightly
-// 12/9/2025 Added lock to swing end
+// 12/9/2025 Added lock to swing end, added gyro smoothing
 
 import Foundation
 import CoreMotion
@@ -128,7 +128,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         lastShotTime = .distantPast
         sessionStart = Date()
                 
-        
+        resetSwingSummaryCSV()   // 🟩 ADD THIS LINE
+
         // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
         motionManager.showsDeviceMovementDisplay = false
         motionManager.deviceMotionUpdateInterval = 1.0 / 80.0
@@ -184,7 +185,10 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     // MARK: - Capture data (and unfreeze)
     private var lastMotionTimestamp: TimeInterval = 0
     private var frozenFrameCount = 0
-
+    // Store the last ~20 gyro magnitudes for impact window
+    private var gyroWindow: [Double] = []
+    private let maxWindowSize = 20   // ~250 ms of data at 80 Hz
+    
     private func captureMotionData() {
         guard let data = motionManager.deviceMotion else { return }
         
@@ -240,21 +244,29 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         
         // --- Magnitude smoothing (4-sample moving average) ---
         let rawMagnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
-        let gyroMagnitude = gyro.x*gyro.x + gyro.y*gyro.y + gyro.z*gyro.z
         magnitudeBuffer.append(rawMagnitude)
         if magnitudeBuffer.count > 4 { magnitudeBuffer.removeFirst() }
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
-        // adding new array to manage accelDelta
-        accelDeltaBuffer.append(rawMagnitude)
-        if accelDeltaBuffer.count > 7 { accelDeltaBuffer.removeFirst() }
+        
+        // --- gyro mag smoothing (20-samples stored) ---
+        let gyroMagnitudeSQ = gyro.x*gyro.x + gyro.y*gyro.y + gyro.z*gyro.z
+        gyroWindow.append(sqrt(gyroMagnitudeSQ))
+        if gyroWindow.count > maxWindowSize {
+            gyroWindow.removeFirst()
+        }
+        
+        
+        // limits
         let accelDeltaLimit: Double = 0.8 //
         let smoothedMagnitudeLimit: Double = 1.2 // 1.9
-        let SQeffectiveGyroXY = effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY
-        let smoothedgyroLimit: Double = 42 // 144
         let rawMagnitudeLimit: Double = 4 // 1.9
-
+        let smoothedgyroLimit: Double = 42 // 144
+        let effectiveGyroXYSQ = effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY // remove? Replace with gyroMagnitudeSQ
         
+        // adding new 7 size array to manage accelDelta
+        accelDeltaBuffer.append(rawMagnitude)
+        if accelDeltaBuffer.count > 7 { accelDeltaBuffer.removeFirst() }
         var accelDelta: Double = 0.0
         if accelDeltaBuffer.count == 7 {
             accelDelta = accelDeltaBuffer.last!-accelDeltaBuffer.first!
@@ -270,22 +282,25 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             static var pendingType: String = ""
             static var peakGyroYPos: Double = 0.0
             static var peakGyroYNeg: Double = 0.0
-            static var peakGyroMagnitude: Double = 0.0
+            static var peakGyroMagnitudeSQ: Double = 0.0
             static var peakRMSGyroMagnitude: Double = 0.0
+            static var impactDetected: Bool = false
+            static var peakLocked: Bool = false
+            static var peakGyroFiltered: Double = 0.0
         }
         
         // adding minimum magnitude check	
         if rawMagnitude > 0.6   {
             // ✅ Swing start
             if !isSwinging {
-                if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && SQeffectiveGyroXY > smoothedgyroLimit && rawMagnitude > rawMagnitudeLimit { //
+                if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && effectiveGyroXYSQ > smoothedgyroLimit && rawMagnitude > rawMagnitudeLimit { //
                     isSwinging = true
                     swingFinishedLock = false   // swing lock to prevent extra counts
                     SwingState.peakMagnitude = smoothedMagnitude
                     SwingState.startTime = now
                     SwingState.peakGyroYPos = effectiveGyroY
                     SwingState.peakGyroYNeg = effectiveGyroY
-                    SwingState.peakGyroMagnitude = gyroMagnitude
+                    SwingState.peakGyroMagnitudeSQ = gyroMagnitudeSQ
                     if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
                 }
             } else {
@@ -299,8 +314,26 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 if effectiveGyroY < SwingState.peakGyroYNeg {
                     SwingState.peakGyroYNeg = effectiveGyroY
                 }
-                if gyroMagnitude > SwingState.peakGyroMagnitude {
-                    SwingState.peakGyroMagnitude = gyroMagnitude
+                if isSwinging {
+                    if gyroMagnitudeSQ > SwingState.peakGyroMagnitudeSQ {
+                        SwingState.peakGyroMagnitudeSQ = gyroMagnitudeSQ
+                    }
+                    // stop tracking peak when the swing decelerates
+                    if gyroMagnitudeSQ < SwingState.peakGyroMagnitudeSQ * 0.65 {
+                        SwingState.impactDetected = true
+                    }
+                }
+                // gyro 5 sample smoothing calc
+                if SwingState.impactDetected && !SwingState.peakLocked {
+                    SwingState.peakLocked = true
+                    // 1. Find impact index
+                    let impactIndex = gyroWindow.firstIndex(of: gyroWindow.max() ?? 0) ?? (gyroWindow.count - 1)
+                    // 2. Define window range
+                    let windowStart = max(0, impactIndex - 5)
+                    let windowEnd   = min(gyroWindow.count - 1, impactIndex + 5)
+                    // 3. Compute average rad/s in impact window
+                    let windowSlice = gyroWindow[windowStart...windowEnd]
+                    SwingState.peakGyroFiltered = windowSlice.reduce(0, +) / Double(windowSlice.count)
                 }
                 // ✅ Swing end
                 if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
@@ -322,14 +355,13 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                                     self.shotCount += 1
                                     if type == "Forehand" { self.forehandCount += 1 }
                                     if type == "Backhand" { self.backhandCount += 1 }
-                                    self.lastSwingType = type
+                                    //self.lastSwingType = type
                                     //self.lastMagnitude = smoothedMagnitude
                                 }
-                                SwingState.peakRMSGyroMagnitude = sqrt(SwingState.peakGyroMagnitude)
                                 lastShotTime = now
                                 let summary = SwingSummary(timestamp: now,
                                                            peakMagnitude: SwingState.peakMagnitude,
-                                                           peakRMSGyroMagnitude: SwingState.peakRMSGyroMagnitude,
+                                                           peakGyroFiltered: SwingState.peakGyroFiltered,
                                                            duration: duration,
                                                            type: type)
                                 swingSummaries.append(summary)
@@ -338,9 +370,12 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                             }
                         }
                         SwingState.peakMagnitude = 0.0
-                        SwingState.peakGyroMagnitude = 0.0
+                        SwingState.peakGyroMagnitudeSQ = 0.0
                         SwingState.peakRMSGyroMagnitude = 0.0
                         SwingState.startTime = nil
+                        SwingState.impactDetected = false
+                        SwingState.peakLocked = false
+                        SwingState.peakGyroFiltered = 0.0
                     }
                 }
             }
@@ -433,7 +468,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     struct SwingSummary: Codable {
         let timestamp: Date
         let peakMagnitude: Double
-        let peakRMSGyroMagnitude: Double
+        //let peakRMSGyroMagnitude: Double
+        let peakGyroFiltered: Double
         let duration: Double
         let type: String
     }
@@ -441,7 +477,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     private var swingSummaries: [SwingSummary] = []
 
     private func appendSwingToCSV(_ summary: SwingSummary) {
-        let csvLine = "\(summary.timestamp),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakRMSGyroMagnitude)),\(String(format: "%.2f", summary.duration))\n"
+        let csvLine = "\(summary.timestamp),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakGyroFiltered)),\(String(format: "%.2f", summary.duration))\n"
         let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("SwingSummaries.csv")
         
@@ -456,6 +492,20 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 handle.write(data)
             }
             try? handle.close()
+        }
+    }
+    
+    private func resetSwingSummaryCSV() {
+        let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("SwingSummaries.csv")
+        
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            do {
+                try FileManager.default.removeItem(at: fileURL)
+                print("🧹 Cleared old SwingSummaries.csv")
+            } catch {
+                print("⚠️ Failed to delete old SwingSummaries.csv: \(error.localizedDescription)")
+            }
         }
     }
 }
