@@ -323,7 +323,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                     if !swingState.peakLocked {
                         // --- gyro mag smoothing (20-samples stored) ---
                         gyroWindow.append(sqrt(gyroMagnitudeSQ))
-                        if gyroWindow.count > 10 {
+                        if gyroWindow.count > 8 {
                             gyroWindow.removeFirst()
                         }
                     }
@@ -333,9 +333,9 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                     swingState.peakLocked = true
                     // 1. Find impact index
                     let impactIndex = gyroWindow.firstIndex(of: gyroWindow.max() ?? 0) ?? (gyroWindow.count - 1)
-                    // 2. Define window range, uses a 5 samples
-                    let windowStart = max(0, impactIndex - 2)
-                    let windowEnd   = min(gyroWindow.count - 1, impactIndex + 2)
+                    // 2. Define window range, uses a 3 samples
+                    let windowStart = max(0, impactIndex - 1)
+                    let windowEnd   = min(gyroWindow.count - 1, impactIndex + 1)
                     // 3. Compute average rad/s in impact window
                     let windowSlice = gyroWindow[windowStart...windowEnd]
                     swingState.peakGyroFiltered = windowSlice.reduce(0, +) / Double(windowSlice.count)
