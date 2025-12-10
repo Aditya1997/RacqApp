@@ -22,7 +22,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     private var workoutSession: HKWorkoutSession?
     private var healthStore = HKHealthStore()
     private let backgroundQueue = OperationQueue()
-    
+    private let logQueue = DispatchQueue(label: "com.racqwatch.motionlog")
+
     static let shared = MotionManager()
     
     private let motionManager = CMMotionManager()
@@ -52,6 +53,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     // 🟢 UPDATED: Smoothing buffer
     private var magnitudeBuffer: [Double] = []
     private var accelDeltaBuffer: [Double] = []
+    private var gyroWindow: [Double] = []
 
     override init() {
         super.init()
@@ -186,8 +188,23 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     private var lastMotionTimestamp: TimeInterval = 0
     private var frozenFrameCount = 0
     // Store the last ~20 gyro magnitudes for impact window
-    private var gyroWindow: [Double] = []
-    private let maxWindowSize = 20   // ~250 ms of data at 80 Hz
+    
+    // --- Swing state memory ---
+    struct SwingState {
+        var peakMagnitude: Double = 0.0
+        var startTime: Date? = nil
+        var type: String = ""
+        var pendingType: String = ""
+        var peakGyroYPos: Double = 0.0
+        var peakGyroYNeg: Double = 0.0
+        var peakGyroMagnitudeSQ: Double = 0.0
+        var peakRMSGyroMagnitude: Double = 0.0
+        var impactDetected: Bool = false
+        var peakLocked: Bool = false
+        var peakGyroFiltered: Double = 0.0
+    }
+    
+    private var swingState = SwingState()
     
     private func captureMotionData() {
         guard let data = motionManager.deviceMotion else { return }
@@ -249,21 +266,6 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let smoothedMagnitude = magnitudeBuffer.reduce(0, +) / Double(magnitudeBuffer.count)
         lastMagnitude = smoothedMagnitude
         
-        // --- gyro mag smoothing (20-samples stored) ---
-        let gyroMagnitudeSQ = gyro.x*gyro.x + gyro.y*gyro.y + gyro.z*gyro.z
-        gyroWindow.append(sqrt(gyroMagnitudeSQ))
-        if gyroWindow.count > maxWindowSize {
-            gyroWindow.removeFirst()
-        }
-        
-        
-        // limits
-        let accelDeltaLimit: Double = 0.8 //
-        let smoothedMagnitudeLimit: Double = 1.2 // 1.9
-        let rawMagnitudeLimit: Double = 4 // 1.9
-        let smoothedgyroLimit: Double = 42 // 144
-        let effectiveGyroXYSQ = effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY // remove? Replace with gyroMagnitudeSQ
-        
         // adding new 7 size array to manage accelDelta
         accelDeltaBuffer.append(rawMagnitude)
         if accelDeltaBuffer.count > 7 { accelDeltaBuffer.removeFirst() }
@@ -272,22 +274,17 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             accelDelta = accelDeltaBuffer.last!-accelDeltaBuffer.first!
         }
         
-        let now = Date()
+        // gyro calculations
+        let gyroMagnitudeSQ = gyro.x*gyro.x + gyro.y*gyro.y + gyro.z*gyro.z
+        let effectiveGyroXYSQ = effectiveGyroX * effectiveGyroX + effectiveGyroY * effectiveGyroY // remove? Replace with gyroMagnitudeSQ
         
-        // --- Swing state memory ---
-        struct SwingState {
-            static var peakMagnitude: Double = 0.0
-            static var startTime: Date? = nil
-            static var type: String = ""
-            static var pendingType: String = ""
-            static var peakGyroYPos: Double = 0.0
-            static var peakGyroYNeg: Double = 0.0
-            static var peakGyroMagnitudeSQ: Double = 0.0
-            static var peakRMSGyroMagnitude: Double = 0.0
-            static var impactDetected: Bool = false
-            static var peakLocked: Bool = false
-            static var peakGyroFiltered: Double = 0.0
-        }
+        // limits
+        let accelDeltaLimit: Double = 0.8 //
+        let smoothedMagnitudeLimit: Double = 1.2 // 1.9
+        let rawMagnitudeLimit: Double = 4 // 1.9
+        let smoothedgyroLimit: Double = 42 // 144
+                
+        let now = Date()
         
         // adding minimum magnitude check	
         if rawMagnitude > 0.6   {
@@ -296,36 +293,44 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && effectiveGyroXYSQ > smoothedgyroLimit && rawMagnitude > rawMagnitudeLimit { //
                     isSwinging = true
                     swingFinishedLock = false   // swing lock to prevent extra counts
-                    SwingState.peakMagnitude = smoothedMagnitude
-                    SwingState.startTime = now
-                    SwingState.peakGyroYPos = effectiveGyroY
-                    SwingState.peakGyroYNeg = effectiveGyroY
-                    SwingState.peakGyroMagnitudeSQ = gyroMagnitudeSQ
+                    swingState.peakMagnitude = smoothedMagnitude
+                    swingState.startTime = now
+                    swingState.peakGyroYPos = effectiveGyroY
+                    swingState.peakGyroYNeg = effectiveGyroY
+                    swingState.peakGyroMagnitudeSQ = gyroMagnitudeSQ
+                    gyroWindow.removeAll()
                     if hapticsEnabled { WKInterfaceDevice.current().play(.click) }
                 }
             } else {
                 // Update running peaks (can move this below swing end section)
-                if smoothedMagnitude > SwingState.peakMagnitude {
-                    SwingState.peakMagnitude = smoothedMagnitude
+                if smoothedMagnitude > swingState.peakMagnitude {
+                    swingState.peakMagnitude = smoothedMagnitude
                 }
-                if effectiveGyroY > SwingState.peakGyroYPos {
-                    SwingState.peakGyroYPos = effectiveGyroY
+                if effectiveGyroY > swingState.peakGyroYPos {
+                    swingState.peakGyroYPos = effectiveGyroY
                 }
-                if effectiveGyroY < SwingState.peakGyroYNeg {
-                    SwingState.peakGyroYNeg = effectiveGyroY
+                if effectiveGyroY < swingState.peakGyroYNeg {
+                    swingState.peakGyroYNeg = effectiveGyroY
                 }
                 if isSwinging {
-                    if gyroMagnitudeSQ > SwingState.peakGyroMagnitudeSQ {
-                        SwingState.peakGyroMagnitudeSQ = gyroMagnitudeSQ
+                    if gyroMagnitudeSQ > swingState.peakGyroMagnitudeSQ {
+                        swingState.peakGyroMagnitudeSQ = gyroMagnitudeSQ
                     }
                     // stop tracking peak when the swing decelerates
-                    if gyroMagnitudeSQ < SwingState.peakGyroMagnitudeSQ * 0.65 {
-                        SwingState.impactDetected = true
+                    if gyroMagnitudeSQ < swingState.peakGyroMagnitudeSQ * 0.65 {
+                        swingState.impactDetected = true
+                    }
+                    if !swingState.peakLocked {
+                        // --- gyro mag smoothing (20-samples stored) ---
+                        gyroWindow.append(sqrt(gyroMagnitudeSQ))
+                        if gyroWindow.count > 20 {
+                            gyroWindow.removeFirst()
+                        }
                     }
                 }
                 // gyro 5 sample smoothing calc
-                if SwingState.impactDetected && !SwingState.peakLocked {
-                    SwingState.peakLocked = true
+                if swingState.impactDetected && !swingState.peakLocked {
+                    swingState.peakLocked = true
                     // 1. Find impact index
                     let impactIndex = gyroWindow.firstIndex(of: gyroWindow.max() ?? 0) ?? (gyroWindow.count - 1)
                     // 2. Define window range
@@ -333,24 +338,24 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                     let windowEnd   = min(gyroWindow.count - 1, impactIndex + 5)
                     // 3. Compute average rad/s in impact window
                     let windowSlice = gyroWindow[windowStart...windowEnd]
-                    SwingState.peakGyroFiltered = windowSlice.reduce(0, +) / Double(windowSlice.count)
+                    swingState.peakGyroFiltered = windowSlice.reduce(0, +) / Double(windowSlice.count)
                 }
                 // ✅ Swing end
-                if (SwingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= SwingState.peakMagnitude * 0.5) {
+                if (swingState.peakMagnitude - smoothedMagnitude >= 3) || (smoothedMagnitude <= swingState.peakMagnitude * 0.5) {
                     if !swingFinishedLock {
                         swingFinishedLock = true
                         isSwinging = false
                         if now.timeIntervalSince(lastShotTime) > shotCooldown {     // cooldown check passed
-                            if let start = SwingState.startTime {
+                            if let start = swingState.startTime {
                                 let duration = now.timeIntervalSince(start)
-                                if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) > abs(SwingState.peakGyroYNeg) {
+                                if abs(effectiveGyroX) > 5 && abs(swingState.peakGyroYPos) > abs(swingState.peakGyroYNeg) {
                                     isBackhand = true
                                 }
-                                else if abs(effectiveGyroX) > 5 && abs(SwingState.peakGyroYPos) < abs(SwingState.peakGyroYNeg) {
+                                else if abs(effectiveGyroX) > 5 && abs(swingState.peakGyroYPos) < abs(swingState.peakGyroYNeg) {
                                     isForehand = true
                                 }
-                                SwingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
-                                let type = SwingState.pendingType
+                                swingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
+                                let type = swingState.pendingType
                                 DispatchQueue.main.async {
                                     self.shotCount += 1
                                     if type == "Forehand" { self.forehandCount += 1 }
@@ -360,22 +365,24 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                                 }
                                 lastShotTime = now
                                 let summary = SwingSummary(timestamp: now,
-                                                           peakMagnitude: SwingState.peakMagnitude,
-                                                           peakGyroFiltered: SwingState.peakGyroFiltered,
+                                                           peakMagnitude: swingState.peakMagnitude,
+                                                           peakGyroFiltered: swingState.peakGyroFiltered,
                                                            duration: duration,
                                                            type: type)
                                 swingSummaries.append(summary)
                                 appendSwingToCSV(summary)
-                                // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", SwingState.type, SwingState.peakMagnitude, duration)) // NO MORE PRINTS
+                                // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", swingState.type, swingState.peakMagnitude, duration)) // NO MORE PRINTS
                             }
                         }
-                        SwingState.peakMagnitude = 0.0
-                        SwingState.peakGyroMagnitudeSQ = 0.0
-                        SwingState.peakRMSGyroMagnitude = 0.0
-                        SwingState.startTime = nil
-                        SwingState.impactDetected = false
-                        SwingState.peakLocked = false
-                        SwingState.peakGyroFiltered = 0.0
+//                        swingState.peakMagnitude = 0.0
+//                        swingState.peakGyroMagnitudeSQ = 0.0
+//                        swingState.peakRMSGyroMagnitude = 0.0
+//                        swingState.startTime = nil
+//                        swingState.impactDetected = false
+//                        swingState.peakLocked = false
+//                        swingState.peakGyroFiltered = 0.0
+                        swingState = SwingState()
+                        gyroWindow.removeAll()
                     }
                 }
             }
@@ -428,7 +435,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let fileName = "Session_\(Int(Date().timeIntervalSince1970)).csv"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         
-        var csv = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,roll,facingForward,wrist,isForehand,isBackhand\n" // 🟢 UPDATED header, 11/13 removed roll,pitch,yaw,facingForward,
+        var csv = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,roll,pitch,yaw,facingForward,wrist,isForehand,isBackhand\n"
         
         for e in dataLog {
             csv.append(
