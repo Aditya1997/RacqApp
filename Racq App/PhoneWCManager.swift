@@ -89,7 +89,11 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     // MARK: - Handle Summary Data
     private func applySummary(_ dict: [String: Any]) {
         if let shots = dict["shotCount"] as? Int { summaryShotCount = shots }
-        if let dur = dict["durationSec"] as? Int ?? dict["duration"] as? Int { summaryDurationSec = dur }
+        if let dur = dict["durationSec"] as? Int {
+            summaryDurationSec = dur
+        } else {
+            print("⚠️ No duration in summary message: \(dict)")
+        }
         if let hr = dict["heartRate"] as? Double { summaryHeartRate = hr }
         if let ts = dict["timestampISO"] as? String ?? dict["timestamp"] as? String { summaryTimestampISO = ts }
         if let fh = dict["forehandCount"] as? Int { summaryforehandCount = fh }

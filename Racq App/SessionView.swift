@@ -75,7 +75,7 @@ struct SessionView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                SummaryCard(
+                DetailedSummaryCard(
                     shots: wc.summaryShotCount,
                     durationSec: wc.summaryDurationSec,
                     heartRate: wc.summaryHeartRate,
@@ -212,7 +212,7 @@ struct PlayerHeightView: View {
 }
 
 // MARK: - Summary Card
-private struct SummaryCard: View {
+private struct DetailedSummaryCard: View {
     let shots: Int
     let durationSec: Int
     let heartRate: Double

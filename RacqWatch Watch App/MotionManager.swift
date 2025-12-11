@@ -166,7 +166,13 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             "backhandCount": backhandCount,
             "timestamp": ISO8601DateFormatter().string(from: Date())
         ]
-        WatchWCManager.shared.sendData(summary)
+        
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(summary, replyHandler: nil)
+            print("📤 Sent summary via sendMessage")
+        } else {
+            print("❌ Phone not reachable — summary not sent")
+        }
         
         // 2) Export and transfer CSV
         if let fileURL = exportCSV() {
@@ -321,7 +327,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                         swingState.impactDetected = true
                     }
                     if !swingState.peakLocked {
-                        // --- gyro mag smoothing (20-samples stored) ---
+                        // --- gyro mag smoothing (8 samples stored) ---
                         gyroWindow.append(sqrt(gyroMagnitudeSQ))
                         if gyroWindow.count > 8 {
                             gyroWindow.removeFirst()
@@ -404,7 +410,6 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         )
         
         dataLog.append(record)
-
         //if now.timeIntervalSince(lastCSVLogTime) > 0.05 {   // log at 20Hz, not 80Hz
         //    dataLog.append(record)
         //    lastCSVLogTime = now
