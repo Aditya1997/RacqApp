@@ -182,32 +182,40 @@ struct HomeView: View { // Renamed from ContentView
                                     //gradient: yellowGradient
                                 )
                             }
-                            VStack(spacing: 16){
-                                DualMetricCard(
-                                    title: "Forehand Speed",
-                                    maxValue: String(format: "%.0f mph", SwingMath.maxFHSpeed(swings: swings, height: userHeight)),
-                                    avgValue: String(format: "%.0f", SwingMath.avgFHSpeed(swings: swings, height: userHeight)),
-                                    avgRatio: CGFloat(
-                                        SwingMath.avgFHSpeed(swings: swings, height: userHeight) /
-                                        max( SwingMath.maxFHSpeed(swings: swings, height: userHeight), 1 )
-                                    ),
-                                    barColor: .blue,
-                                    icon: AnyView(letterIcon("F"))
-                                )
-                                DualMetricCard(
-                                    title: "Backhand Speed",
-                                    maxValue: String(format: "%.0f mph", SwingMath.maxBHSpeed(swings: swings, height: userHeight)),
-                                    avgValue: String(format: "%.0f", SwingMath.avgBHSpeed(swings: swings, height: userHeight)),
-                                    avgRatio: CGFloat(
-                                        SwingMath.avgBHSpeed(swings: swings, height: userHeight) /
-                                        max( SwingMath.maxBHSpeed(swings: swings, height: userHeight), 1 )
-                                    ),
-                                    barColor: .red,
-                                    icon: AnyView(letterIcon("B"))
-                                )
-                            }
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .cornerRadius(20)
+                            CombinedSpeedCard(
+                                fhTitle: "Forehand Speed",
+                                fhMaxValue: String(
+                                    format: "%.0f mph",
+                                    SwingMath.maxFHSpeed(swings: swings, height: userHeight)
+                                ),
+                                fhAvgValue: String(
+                                    format: "%.0f",
+                                    SwingMath.avgFHSpeed(swings: swings, height: userHeight)
+                                ),
+                                fhRatio: CGFloat(
+                                    SwingMath.avgFHSpeed(swings: swings, height: userHeight) /
+                                    max(SwingMath.maxFHSpeed(swings: swings, height: userHeight), 1)
+                                ),
+                                fhColor: .blue,
+                                fhIcon: AnyView(letterIcon("F")),
+
+                                bhTitle: "Backhand Speed",
+                                bhMaxValue: String(
+                                    format: "%.0f mph",
+                                    SwingMath.maxBHSpeed(swings: swings, height: userHeight)
+                                ),
+                                bhAvgValue: String(
+                                    format: "%.0f",
+                                    SwingMath.avgBHSpeed(swings: swings, height: userHeight)
+                                ),
+                                bhRatio: CGFloat(
+                                    SwingMath.avgBHSpeed(swings: swings, height: userHeight) /
+                                    max(SwingMath.maxBHSpeed(swings: swings, height: userHeight), 1)
+                                ),
+                                bhColor: .red,
+                                bhIcon: AnyView(letterIcon("B"))
+                            )
+                            .frame(maxWidth: .infinity)
                             .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
                         }
                     }

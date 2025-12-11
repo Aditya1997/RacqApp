@@ -11,7 +11,7 @@ struct SwingRecord: Identifiable {
     let timestamp: String
     let type: String
     let peakMagnitude: String
-    let peakRMSGyroMagnitude: String
+    let peakGyroFiltered: String
     let duration: String
 }
 
@@ -40,6 +40,7 @@ struct CSVViewerView: View {
                             Text("Timestamp: \(swing.timestamp)")
                             Text("Type: \(swing.type)")
                             Text("Peak: \(swing.peakMagnitude) g")
+                            Text("Peak: \(swing.peakGyroFiltered) rad/s")
                             Text("Duration: \(swing.duration) s")
                         }
                         .font(.system(.body, design: .monospaced))
@@ -81,7 +82,7 @@ struct CSVViewerView: View {
                         timestamp: cols[0],
                         type: cols[1],
                         peakMagnitude: cols[2],
-                        peakRMSGyroMagnitude: cols[3],
+                        peakGyroFiltered: cols[3],
                         duration: cols[4]
                     )
                     parsed.append(record)

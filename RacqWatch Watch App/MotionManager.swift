@@ -114,6 +114,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     // MARK: - Start
     func startMotionUpdates() {
         beginWorkoutSession()
+        sessionStart = Date()
+
         guard motionManager.isDeviceMotionAvailable else {
             print("❌ Motion sensors unavailable.")
             return
@@ -121,6 +123,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         
         dataLog.removeAll()
         swingSummaries.removeAll()
+        resetSwingSummaryCSV()
+
         shotCount = 0
         forehandCount = 0
         backhandCount = 0
@@ -128,18 +132,13 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         isActive = true
         isSwinging = false
         lastShotTime = .distantPast
-        sessionStart = Date()
-                
-        resetSwingSummaryCSV()   // 🟩 ADD THIS LINE
 
         // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
         motionManager.showsDeviceMovementDisplay = false
         motionManager.deviceMotionUpdateInterval = 1.0 / 80.0
         motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
                                                to: backgroundQueue) { [weak self] _, _ in
-            //Task { @MainActor in
                 self?.captureMotionData()
-            //}
         }
         print("✅ Started motion updates at 80 Hz.")
     }
@@ -152,7 +151,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         //timer = nil
         isActive = false
         
-        let durationSec = max(0, Date().timeIntervalSince(sessionStart ?? Date()))
+        let start = sessionStart ?? Date()
+        let durationSec = Int(Date().timeIntervalSince(start))
         let hr = HealthManager.shared.heartRate
         
         print("🛑 Motion updates stopped. shots=\(shotCount) duration=\(Int(durationSec))s hr=\(hr)")
@@ -494,7 +494,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             .appendingPathComponent("SwingSummaries.csv")
         
         if !FileManager.default.fileExists(atPath: fileURL.path) {
-            let header = "Timestamp,Type,PeakMagnitude(g),PeakRMSGyroMagnitude(rad/s),Duration(s)\n"
+            let header = "Timestamp,Type,PeakMagnitude(g),peakGyroFiltered(rad/s),Duration(s)\n"
             try? header.write(to: fileURL, atomically: true, encoding: .utf8)
         }
         

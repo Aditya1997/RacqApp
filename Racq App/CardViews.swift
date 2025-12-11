@@ -48,9 +48,9 @@ struct SummaryCard: View {
 }
 
 
-// MARK: - DualMetricCard (max + avg + bar)
+// MARK: - One Hand Speed (max + avg + bar)
 
-struct DualMetricCard: View {
+struct OneHandSpeedCard: View {
     var title: String
     var maxValue: String
     var avgValue: String
@@ -96,6 +96,128 @@ struct DualMetricCard: View {
             }
         }
         .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
+    }
+}
+
+// MARK: - Combined Speed Card (max + avg + bar + both hands)
+
+struct CombinedSpeedCard: View {
+    var fhTitle: String
+    var fhMaxValue: String
+    var fhAvgValue: String
+    var fhRatio: CGFloat
+    var fhColor: Color
+    var fhIcon: AnyView? = nil
+
+    var bhTitle: String
+    var bhMaxValue: String
+    var bhAvgValue: String
+    var bhRatio: CGFloat
+    var bhColor: Color
+    var bhIcon: AnyView? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // forehand row
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(fhTitle)
+                            .foregroundColor(.white.opacity(0.75))
+                            .font(.subheadline)
+                        if let icon = fhIcon {
+                            icon
+                                .frame(width: 30, height: 30)
+                        }
+                    }
+                    Spacer()
+                    Text(fhMaxValue)
+                        .foregroundColor(.white)
+                        .font(.system(size: 24, weight: .bold))
+                }
+                // forehand bar
+                ZStack(alignment: .leading) {
+                    // Background bar (always visible)
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.white.opacity(0.12))
+                        .frame(height: 16)
+                    GeometryReader { geo in
+                        let clamped = max(min(fhRatio, 1), 0)
+                        let barWidth = geo.size.width * clamped
+                        // Foreground colored bar
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(fhColor)
+                            .frame(width: barWidth, height: 16)
+                    }
+                }
+                .overlay(
+                    Text("\(fhAvgValue) avg")
+                        .font(.caption2)
+                        .foregroundColor(.white)
+                        .padding(.leading, 4)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7),
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 12)
+            }
+            //Divider()
+            //    .background(Color.white.opacity(0.3))
+            // backhand row
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(bhTitle)
+                            .foregroundColor(.white.opacity(0.75))
+                            .font(.subheadline)
+                        if let icon = bhIcon {
+                            icon
+                                .frame(width: 30, height: 30)
+                        }
+                    }
+                    Spacer()
+                    Text(bhMaxValue)
+                        .foregroundColor(.white)
+                        .font(.system(size: 24, weight: .bold))
+                }
+                // backhand bar
+                ZStack(alignment: .leading) {
+                    // Background bar (always visible)
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.white.opacity(0.12))
+                        .frame(height: 16)
+                    GeometryReader { geo in
+                        let clamped = max(min(bhRatio, 1), 0)
+                        let barWidth = geo.size.width * clamped
+                        // Foreground colored bar
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(bhColor)
+                            .frame(width: barWidth, height: 16)
+                    }
+                }
+                .overlay(
+                    Text("\(bhAvgValue) avg")
+                        .font(.caption2)
+                        .foregroundColor(.white)
+                        .padding(.leading, 4)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7),
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 12)
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 8)
         .background(
             RoundedRectangle(cornerRadius: 18)
                 .fill(.ultraThinMaterial)
