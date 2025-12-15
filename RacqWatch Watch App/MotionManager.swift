@@ -154,7 +154,9 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
         
         beginWorkoutSession()
-        sessionStart = Date()
+        if sessionStart == nil {
+            sessionStart = Date()
+        }
         startHeartRateUpdates()
       
         // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
@@ -224,6 +226,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             WatchWCManager.shared.sendFileToPhone(summaryURL)
         }
         
+        sessionStart = nil
+
         func endWorkoutSession() {
             workoutSession?.end()
             workoutSession = nil
@@ -296,13 +300,6 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         // --- Classification (degrees) ---
         var isForehand = false
         var isBackhand = false
-
-        // UNUSED
-        //let yawThreshold: Double = 10.0
-        //let angularSpeed = sqrt(effectiveGyroY * effectiveGyroY + effectiveGyroZ * effectiveGyroZ)
-        
-        //let isForehand = (effectiveGyroZ > 40 && effectiveGyroY > 0 && effectiveYaw > yawThreshold)
-        //let isBackhand = (effectiveGyroZ < -40 && effectiveGyroY < 0 && effectiveYaw < -yawThreshold)
         
         // --- Magnitude smoothing (4-sample moving average) ---
         let rawMagnitude = sqrt(acc.x * acc.x + acc.y * acc.y + acc.z * acc.z)
@@ -338,8 +335,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 if accelDelta > accelDeltaLimit && smoothedMagnitude > smoothedMagnitudeLimit && effectiveGyroXYSQ > smoothedgyroLimit && rawMagnitude > rawMagnitudeLimit { //
                     isSwinging = true
                     swingFinishedLock = false   // swing lock to prevent extra counts
-                    swingState.peakMagnitude = smoothedMagnitude
                     swingState.startTime = now
+                    swingState.peakMagnitude = smoothedMagnitude
                     swingState.peakGyroYPos = effectiveGyroY
                     swingState.peakGyroYNeg = effectiveGyroY
                     swingState.peakGyroMagnitudeSQ = gyroMagnitudeSQ
@@ -401,12 +398,11 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                                 }
                                 swingState.pendingType = isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown")
                                 let type = swingState.pendingType
+                                let shotType = type
                                 DispatchQueue.main.async {
                                     self.shotCount += 1
-                                    if type == "Forehand" { self.forehandCount += 1 }
-                                    if type == "Backhand" { self.backhandCount += 1 }
-                                    //self.lastSwingType = type
-                                    //self.lastMagnitude = smoothedMagnitude
+                                    if shotType == "Forehand" { self.forehandCount += 1 }
+                                    if shotType == "Backhand" { self.backhandCount += 1 }
                                 }
                                 lastShotTime = now
                                 let summary = SwingSummary(timestamp: now,
@@ -448,17 +444,11 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             isBackhand: isBackhand
         )
         
-        dataLog.append(record)
-        //if now.timeIntervalSince(lastCSVLogTime) > 0.05 {   // log at 20Hz, not 80Hz
-        //    dataLog.append(record)
-        //    lastCSVLogTime = now
-        //}
-        
-        // UNUSED NO MORE PRINTS
-        //print(String(format: "🎾 %@ | %@ | Mag: %.3f | Peak: %.3f",
-        //             wristSide,
-        //             isForehand ? "Forehand" : (isBackhand ? "Backhand" : "Unknown"),
-        //             smoothedMagnitude, SwingState.peakMagnitude))
+        //dataLog.append(record)
+        if now.timeIntervalSince(lastCSVLogTime) > 0.025 {   // log at 40Hz, not 80Hz
+            dataLog.append(record)
+            lastCSVLogTime = now
+        }
     }
     
     // MARK: - 🟩 4. Restart motion stream if frozen
