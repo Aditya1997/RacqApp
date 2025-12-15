@@ -489,7 +489,11 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     private var swingSummaries: [SwingSummary] = []
 
     private func appendSwingToCSV(_ summary: SwingSummary) {
-        let csvLine = "\(summary.timestamp),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakGyroFiltered)),\(String(format: "%.2f", summary.duration))\n"
+        let formatter = ISO8601DateFormatter()
+        let ts = formatter.string(from: summary.timestamp)
+
+        let csvLine = "\(ts),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakGyroFiltered)),\(String(format: "%.2f", summary.duration))\n"
+        
         let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("SwingSummaries.csv")
         
