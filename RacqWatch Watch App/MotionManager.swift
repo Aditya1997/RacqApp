@@ -21,7 +21,14 @@ import HealthKit
 final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate {
     private var workoutSession: HKWorkoutSession?
     private var healthStore = HKHealthStore()
-    private let backgroundQueue = OperationQueue()
+    private let motionQueue: OperationQueue = {
+        let q = OperationQueue()
+        q.name = "com.racqwatch.motion"
+        q.maxConcurrentOperationCount = 1
+        q.qualityOfService = .userInitiated
+        return q
+    }()
+
     private let logQueue = DispatchQueue(label: "com.racqwatch.motionlog")
 
     static let shared = MotionManager()
@@ -57,8 +64,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
 
     override init() {
         super.init()
-        backgroundQueue.maxConcurrentOperationCount = 1
-        backgroundQueue.qualityOfService = .userInitiated
+        //backgroundQueue.maxConcurrentOperationCount = 1
+        //backgroundQueue.qualityOfService = .userInitiated
         WatchWCManager.shared.activateSession()
     }
     
@@ -84,7 +91,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let gyroX: Double
         let gyroY: Double
         let gyroZ: Double
-        let heartRate: Double?
+        let heartRate: Double
         // Orientation tracking
         let roll: Double
         let pitch: Double
@@ -94,6 +101,33 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let wrist: String
         let isForehand: Bool
         let isBackhand: Bool
+    }
+    
+    // MARK: - Heart Rate Functions
+    private var cachedHeartRate: Double = 0
+    private var heartRateTimer: DispatchSourceTimer?
+    
+    func startHeartRateUpdates() {
+        heartRateTimer?.cancel()
+        
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
+        timer.schedule(deadline: .now(), repeating: 1.0) // 1 Hz
+        
+        timer.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            let heartRate = HealthManager.shared.heartRate
+            if heartRate > 0 {
+                self.cachedHeartRate = heartRate
+            }
+        }
+        
+        timer.resume()
+        heartRateTimer = timer
+    }
+    
+    func stopHeartRateUpdates() {
+        heartRateTimer?.cancel()
+        heartRateTimer = nil
     }
     
     // MARK: - HealthKit Sessions
@@ -113,13 +147,27 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     }
     // MARK: - Start
     func startMotionUpdates() {
-        beginWorkoutSession()
-        sessionStart = Date()
-
+        
         guard motionManager.isDeviceMotionAvailable else {
             print("❌ Motion sensors unavailable.")
             return
         }
+        
+        beginWorkoutSession()
+        sessionStart = Date()
+        startHeartRateUpdates()
+      
+        // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
+        motionManager.showsDeviceMovementDisplay = false
+        motionManager.deviceMotionUpdateInterval = 1.0 / 80.0
+        motionManager.startDeviceMotionUpdates(
+            using: .xArbitraryZVertical,
+            to: motionQueue
+        ) { [weak self] motion, error in
+            guard let self = self, let motion = motion else { return }
+            self.captureMotionData(motion)
+        }
+        print("✅ Started motion updates at 80 Hz.")
         
         dataLog.removeAll()
         swingSummaries.removeAll()
@@ -133,19 +181,12 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         isSwinging = false
         lastShotTime = .distantPast
 
-        // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
-        motionManager.showsDeviceMovementDisplay = false
-        motionManager.deviceMotionUpdateInterval = 1.0 / 80.0
-        motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
-                                               to: backgroundQueue) { [weak self] _, _ in
-                self?.captureMotionData()
-        }
-        print("✅ Started motion updates at 80 Hz.")
     }
-    
+
     // MARK: - Stop + export + notify phone (11/11 removed timer)
     func stopMotionUpdates() {
         motionManager.stopDeviceMotionUpdates()
+        stopHeartRateUpdates()
         endWorkoutSession()
         //timer?.invalidate()
         //timer = nil
@@ -161,7 +202,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let summary: [String: Any] = [
             "shotCount": shotCount,
             "duration": Int(durationSec),
-            "heartRate": hr,
+            "heartRate": cachedHeartRate,
             "forehandCount": forehandCount,
             "backhandCount": backhandCount,
             "timestamp": ISO8601DateFormatter().string(from: Date())
@@ -212,14 +253,12 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     
     private var swingState = SwingState()
     
-    private func captureMotionData() {
-        guard let data = motionManager.deviceMotion else { return }
-        
+    private func captureMotionData(_ data: CMDeviceMotion) {
         // 🟩 Detect frozen motion data
         if data.timestamp == lastMotionTimestamp {
             frozenFrameCount += 1
-            if frozenFrameCount >= 5 {
-                print("⚠️ Motion frozen for 5 frames — restarting deviceMotion")
+            if frozenFrameCount >= 3 {
+                print("⚠️ Motion frozen for 3 frames — restarting deviceMotion")
                 frozenFrameCount = 0
                 restartDeviceMotion()
             }
@@ -400,7 +439,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             magnitude: smoothedMagnitude,
             accX: acc.x, accY: acc.y, accZ: acc.z,
             gyroX: gyro.x, gyroY: gyro.y, gyroZ: gyro.z,
-            heartRate: HealthManager.shared.heartRate,
+            heartRate: cachedHeartRate,
             roll: rollDeg,
             pitch: pitchDeg, yaw: yawDeg,
             facingForward: abs(rollDeg) > 0,
@@ -426,12 +465,13 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     private func restartDeviceMotion() {
         motionManager.stopDeviceMotionUpdates()
         motionManager.showsDeviceMovementDisplay = false
-        motionManager.startDeviceMotionUpdates(using: .xArbitraryZVertical,
-                                               to: backgroundQueue) { [weak self] motion, error in
+        motionManager.startDeviceMotionUpdates(
+            using: .xArbitraryZVertical,
+            to: motionQueue
+        ) { [weak self] motion, error in
             guard let self = self, let motion = motion else { return }
-            //Task { @MainActor in
-                self.captureMotionData() }
-        //}
+            self.captureMotionData(motion)
+        }
         print("🔄 Restarted motion updates.")
     }
     
@@ -448,7 +488,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 + "\(e.magnitude),"
                 + "\(e.accX),\(e.accY),\(e.accZ),"
                 + "\(e.gyroX),\(e.gyroY),\(e.gyroZ),"
-                + "\(e.heartRate ?? 0),"
+                + "\(e.heartRate),"
                 + "\(e.roll),"
                 + "\(e.pitch),\(e.yaw),"
                 + "\(e.facingForward),"
