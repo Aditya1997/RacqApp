@@ -9,6 +9,7 @@
 // 11/13/2025 Updates to frequency down to 80 Hz, modification of prints and csv data, modifying the motion code, change queue
 // 11/19/2025 Updates to incorporate cooldown check and tighten limits slightly
 // 12/9/2025 Added lock to swing end, added gyro smoothing
+// 1/8/2026 Push 1 at 1:20 PM made minor fix to data stall, push 2 added CSV stream method to minimize datalog
 
 import Foundation
 import CoreMotion
@@ -145,6 +146,81 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             print("❌ Failed to start workout session: \(error.localizedDescription)")
         }
     }
+    
+    // MARK: - Stream to CSV
+    private var csvStreamURL: URL?
+    private var csvHandle: FileHandle?
+    private var csvHeaderWritten = false
+
+    // Buffered writes
+    private var csvWriteBuffer = Data()
+    private let csvFlushThresholdBytes = 16 * 1024 // ~16KB
+
+    private func startCSVStream() {
+        logQueue.sync {
+            let fileName = "Session_\(Int(Date().timeIntervalSince1970)).csv"
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+            csvStreamURL = url
+
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+
+            do {
+                csvHandle = try FileHandle(forWritingTo: url)
+                csvHeaderWritten = false
+                csvWriteBuffer.removeAll(keepingCapacity: true)
+            } catch {
+                print("❌ Failed to open CSV for writing: \(error)")
+                csvHandle = nil
+                csvHeaderWritten = false
+                csvWriteBuffer.removeAll(keepingCapacity: true)
+            }
+        }
+    }
+
+    private func stopCSVStream() {
+        logQueue.sync {
+            guard let handle = csvHandle else { return }
+
+            if !csvWriteBuffer.isEmpty {
+                handle.write(csvWriteBuffer)
+                csvWriteBuffer.removeAll(keepingCapacity: true)
+            }
+
+            do {
+                try handle.synchronize()
+                try handle.close()
+            } catch {
+                // ignore
+            }
+
+            csvHandle = nil
+            csvHeaderWritten = false
+        }
+    }
+
+    private func enqueueCSVRow(_ line: String) {
+        logQueue.async { [weak self] in
+            guard let self = self, let handle = self.csvHandle else { return }
+
+            if !self.csvHeaderWritten {
+                let header = "timestamp,magnitude,accX,accY,accZ,gyroX,gyroY,gyroZ,heartRate,roll,pitch,yaw,facingForward,wrist,isForehand,isBackhand\n"
+                if let headerData = header.data(using: .utf8) {
+                    self.csvWriteBuffer.append(headerData)
+                }
+                self.csvHeaderWritten = true
+            }
+
+            if let data = line.data(using: .utf8) {
+                self.csvWriteBuffer.append(data)
+            }
+
+            if self.csvWriteBuffer.count >= self.csvFlushThresholdBytes {
+                handle.write(self.csvWriteBuffer)
+                self.csvWriteBuffer.removeAll(keepingCapacity: true)
+            }
+        }
+    }
+    
     // MARK: - Start
     func startMotionUpdates() {
         
@@ -157,6 +233,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         if sessionStart == nil {
             sessionStart = Date()
         }
+        startCSVStream()
         startHeartRateUpdates()
       
         // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
@@ -167,7 +244,9 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             to: motionQueue
         ) { [weak self] motion, error in
             guard let self = self, let motion = motion else { return }
-            self.captureMotionData(motion)
+            autoreleasepool {
+                self.captureMotionData(motion)
+            }
         }
         print("✅ Started motion updates at 80 Hz.")
         
@@ -188,6 +267,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
     // MARK: - Stop + export + notify phone (11/11 removed timer)
     func stopMotionUpdates() {
         motionManager.stopDeviceMotionUpdates()
+        stopCSVStream()
         stopHeartRateUpdates()
         endWorkoutSession()
         //timer?.invalidate()
@@ -218,11 +298,16 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
         
         // 2) Export and transfer CSV
-        if let fileURL = exportCSV() {
-            WatchWCManager.shared.sendFileToPhone(fileURL)
+        
+        if let url = csvStreamURL { // CSV stream method
+            WatchWCManager.shared.sendFileToPhone(url)
         }
         
-        if let summaryURL = getSwingSummaryCSVFile() {
+//        if let fileURL = exportCSV() { // datalog append method
+//            WatchWCManager.shared.sendFileToPhone(fileURL)
+//        }
+        
+        if let summaryURL = getSwingSummaryCSVFile() { // swing summary csv
             WatchWCManager.shared.sendFileToPhone(summaryURL)
         }
         
@@ -431,26 +516,29 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         // --- Log frame data ---
         if now.timeIntervalSince(lastCSVLogTime) >= 0.05 { // 20 Hz
             lastCSVLogTime = now
-            let record = MotionData(
-                timestamp: now,
-                magnitude: lastMagnitude,     // or smoothedMagnitude you computed
-                accX: data.userAcceleration.x,
-                accY: data.userAcceleration.y,
-                accZ: data.userAcceleration.z,
-                gyroX: data.rotationRate.x,
-                gyroY: data.rotationRate.y,
-                gyroZ: data.rotationRate.z,
-                heartRate: cachedHeartRate,
-                roll: data.attitude.roll * 180.0 / .pi,
-                pitch: data.attitude.pitch * 180.0 / .pi,
-                yaw: data.attitude.yaw * 180.0 / .pi,
-                facingForward: abs(data.attitude.roll * 180.0 / .pi) > 0,
-                wrist: "Right Wrist",
-                isForehand: false,
-                isBackhand: false
-                )
-            
-            dataLog.append(record)   // ✅ ALSO 20 Hz now
+            // lastMagnitude?
+            let line =
+              "\(now.timeIntervalSince1970),\(smoothedMagnitude),\(acc.x),\(acc.y),\(acc.z),\(gyro.x),\(gyro.y),\(gyro.z),\(cachedHeartRate),\(rollDeg),\(pitchDeg),\(yawDeg),\(abs(rollDeg) > 0),\(wristSide),\(isForehand),\(isBackhand)\n"
+            enqueueCSVRow(line)
+//            let record = MotionData(
+//                timestamp: now,
+//                magnitude: lastMagnitude,     // or smoothedMagnitude you computed
+//                accX: data.userAcceleration.x,
+//                accY: data.userAcceleration.y,
+//                accZ: data.userAcceleration.z,
+//                gyroX: data.rotationRate.x,
+//                gyroY: data.rotationRate.y,
+//                gyroZ: data.rotationRate.z,
+//                heartRate: cachedHeartRate,
+//                roll: data.attitude.roll * 180.0 / .pi,
+//                pitch: data.attitude.pitch * 180.0 / .pi,
+//                yaw: data.attitude.yaw * 180.0 / .pi,
+//                facingForward: abs(data.attitude.roll * 180.0 / .pi) > 0,
+//                wrist: "Right Wrist",
+//                isForehand: false,
+//                isBackhand: false
+//                )
+//            dataLog.append(record)
         }
     }
     
@@ -463,7 +551,9 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             to: motionQueue
         ) { [weak self] motion, error in
             guard let self = self, let motion = motion else { return }
-            self.captureMotionData(motion)
+            autoreleasepool {
+                self.captureMotionData(motion)
+            }
         }
         print("🔄 Restarted motion updates.")
     }
