@@ -428,26 +428,29 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 }
             }
         }
-        
         // --- Log frame data ---
-        let record = MotionData(
-            timestamp: now,
-            magnitude: smoothedMagnitude,
-            accX: acc.x, accY: acc.y, accZ: acc.z,
-            gyroX: gyro.x, gyroY: gyro.y, gyroZ: gyro.z,
-            heartRate: cachedHeartRate,
-            roll: rollDeg,
-            pitch: pitchDeg, yaw: yawDeg,
-            facingForward: abs(rollDeg) > 0,
-            wrist: wristSide,
-            isForehand: isForehand,
-            isBackhand: isBackhand
-        )
-        
-        //dataLog.append(record)
-        if now.timeIntervalSince(lastCSVLogTime) > 0.025 {   // log at 40Hz, not 80Hz
-            dataLog.append(record)
+        if now.timeIntervalSince(lastCSVLogTime) >= 0.05 { // 20 Hz
             lastCSVLogTime = now
+            let record = MotionData(
+                timestamp: now,
+                magnitude: lastMagnitude,     // or smoothedMagnitude you computed
+                accX: data.userAcceleration.x,
+                accY: data.userAcceleration.y,
+                accZ: data.userAcceleration.z,
+                gyroX: data.rotationRate.x,
+                gyroY: data.rotationRate.y,
+                gyroZ: data.rotationRate.z,
+                heartRate: cachedHeartRate,
+                roll: data.attitude.roll * 180.0 / .pi,
+                pitch: data.attitude.pitch * 180.0 / .pi,
+                yaw: data.attitude.yaw * 180.0 / .pi,
+                facingForward: abs(data.attitude.roll * 180.0 / .pi) > 0,
+                wrist: "Right Wrist",
+                isForehand: false,
+                isBackhand: false
+                )
+            
+            dataLog.append(record)   // ✅ ALSO 20 Hz now
         }
     }
     
