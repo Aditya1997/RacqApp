@@ -27,6 +27,8 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var csvURL: URL?
     @Published var summaryCSVURL: URL?
 
+    private var lastAppliedSessionTimestampISO: String = ""
+
     private override init() {
         super.init()
         setupSession()
@@ -102,7 +104,29 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
         if let bh = dict["backhandCount"] as? Int { summarybackhandCount = bh }
 
         print("📥 Summary received: shots=\(summaryShotCount), dur=\(summaryDurationSec), hr=\(summaryHeartRate)")
+        
+        // Applying session summary to challenges
+        let ts = summaryTimestampISO
+        if !ts.isEmpty, ts != lastAppliedSessionTimestampISO {
+            lastAppliedSessionTimestampISO = ts
+
+            let summary = SessionSummary(
+                shotCount: summaryShotCount,
+                durationSec: summaryDurationSec,
+                heartRate: summaryHeartRate,
+                timestampISO: summaryTimestampISO,
+                forehandCount: summaryforehandCount,
+                backhandCount: summarybackhandCount
+            )
+
+            Task { @MainActor in
+                let store = ChallengeStore()
+                await store.applySessionToJoinedChallenges(summary, participantName: "You")
+            }
+        }
     }
+    
+    
 
     // MARK: - File Transfer
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
