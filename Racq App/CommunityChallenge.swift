@@ -26,19 +26,33 @@ enum ChallengeTrackedStat: String, Codable, CaseIterable, Identifiable {
 }
 
 struct Challenge: Identifiable, Codable, Equatable {
-    var id: String?                 // NOTE: you currently treat id as optional in addChallenge
+    var id: String?                 // keeping optional to match your existing store
     var title: String
     var goal: Int
     var progress: Int
+
+    /// participantId -> progress
     var participants: [String: Int]
 
-    // ✅ sponsor optional (already used by your UI)
+    /// participantId -> display name
+    var participantNames: [String: String]
+
     var sponsor: String?
 
-    // ✅ NEW: auto-update fields
     var trackedStat: ChallengeTrackedStat
     var minPerSession: Int?
 
-    // ✅ keep updatedAt (you already read/write it)
     var updatedAt: Date = Date()
+
+    func isJoined(participantId: String) -> Bool {
+        participants[participantId] != nil
+    }
+
+    func participantProgress(participantId: String) -> Int {
+        participants[participantId] ?? 0
+    }
+
+    func participantName(participantId: String) -> String {
+        participantNames[participantId] ?? "Unknown"
+    }
 }

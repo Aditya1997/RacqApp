@@ -109,7 +109,6 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
         let ts = summaryTimestampISO
         if !ts.isEmpty, ts != lastAppliedSessionTimestampISO {
             lastAppliedSessionTimestampISO = ts
-
             let summary = SessionSummary(
                 shotCount: summaryShotCount,
                 durationSec: summaryDurationSec,
@@ -118,10 +117,22 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
                 forehandCount: summaryforehandCount,
                 backhandCount: summarybackhandCount
             )
+            let pid = UserIdentity.participantId()
+            let name = UserIdentity.displayName()
 
             Task { @MainActor in
                 let store = ChallengeStore()
-                await store.applySessionToJoinedChallenges(summary, participantName: "You")
+                await store.applySessionToJoinedChallenges(summary, participantId: pid, displayName: name)
+            }
+            
+            let groupIds = GroupMembership.getGroupIds()
+            Task { @MainActor in
+                await GroupStore.shared.applySessionToGroupLeaderboards(
+                    summary: summary,
+                    participantId: pid,
+                    displayName: name,
+                    groupIds: groupIds
+                )
             }
         }
     }

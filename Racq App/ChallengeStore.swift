@@ -14,9 +14,7 @@ import FirebaseFirestore
 final class ChallengeStore: ObservableObject {
     @Published var challenges: [Challenge] = []
 
-    private var db: Firestore {
-        FirebaseManager.shared.db
-    }
+    private var db: Firestore { FirebaseManager.shared.db }
 
     // MARK: - Fetch
     func fetchChallenges() async {
@@ -37,10 +35,11 @@ final class ChallengeStore: ObservableObject {
                 else { return nil }
 
                 let participants = data["participants"] as? [String: Int] ?? [:]
+                let participantNames = data["participantNames"] as? [String: String] ?? [:]
+
                 let sponsor = data["sponsor"] as? String
                 let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
 
-                // ✅ NEW: tracked stat + minPerSession
                 let trackedRaw = data["trackedStat"] as? String ?? "forehands"
                 let tracked = ChallengeTrackedStat(rawValue: trackedRaw) ?? .forehands
                 let minPerSession = data["minPerSession"] as? Int
@@ -51,6 +50,7 @@ final class ChallengeStore: ObservableObject {
                     goal: goal,
                     progress: progress,
                     participants: participants,
+                    participantNames: participantNames,
                     sponsor: sponsor,
                     trackedStat: tracked,
                     minPerSession: minPerSession,
@@ -74,12 +74,12 @@ final class ChallengeStore: ObservableObject {
                 "goal": challenge.goal,
                 "progress": challenge.progress,
                 "participants": challenge.participants,
+                "participantNames": challenge.participantNames,
                 "trackedStat": challenge.trackedStat.rawValue,
                 "minPerSession": challenge.minPerSession as Any,
                 "updatedAt": Timestamp(date: Date())
             ]
 
-            // ✅ only store sponsor if non-empty
             if let sponsor = challenge.sponsor?.trimmingCharacters(in: .whitespacesAndNewlines),
                !sponsor.isEmpty {
                 payload["sponsor"] = sponsor
@@ -87,17 +87,18 @@ final class ChallengeStore: ObservableObject {
 
             try await db.collection("challenges").document(docID).setData(payload)
         } catch {
-            print("Error saving challenge: \(error)")
+            print("❌ Error saving challenge: \(error)")
         }
     }
 
-    // MARK: - Join (so only joined challenges auto-update for this user)
-    func joinChallenge(challengeId: String, participantName: String = "You") async {
+    // MARK: - Join (per user)
+    func joinChallenge(challengeId: String, participantId: String, displayName: String) async {
         do {
             try await db.collection("challenges")
                 .document(challengeId)
                 .updateData([
-                    "participants.\(participantName)": 0,
+                    "participants.\(participantId)": 0,
+                    "participantNames.\(participantId)": displayName,
                     "updatedAt": Timestamp(date: Date())
                 ])
             await fetchChallenges()
@@ -107,20 +108,18 @@ final class ChallengeStore: ObservableObject {
     }
 
     // MARK: - Auto apply a completed session to joined challenges
-    func applySessionToJoinedChallenges(_ summary: SessionSummary, participantName: String = "You") async {
+    func applySessionToJoinedChallenges(_ summary: SessionSummary, participantId: String, displayName: String) async {
         do {
             let snapshot = try await db.collection("challenges").getDocuments()
 
             for doc in snapshot.documents {
                 let data = doc.data()
 
-                // tracked stat required
                 let trackedRaw = data["trackedStat"] as? String ?? "forehands"
                 guard let tracked = ChallengeTrackedStat(rawValue: trackedRaw) else { continue }
 
-                // only apply if joined
                 let participants = data["participants"] as? [String: Int] ?? [:]
-                guard participants[participantName] != nil else { continue }
+                guard participants[participantId] != nil else { continue } // joined only
 
                 let goal = data["goal"] as? Int ?? 0
                 let currentProgress = data["progress"] as? Int ?? 0
@@ -129,11 +128,10 @@ final class ChallengeStore: ObservableObject {
                 let minPerSession = data["minPerSession"] as? Int ?? 0
                 let delta = summary.value(for: tracked)
 
-                // qualify session
                 if delta < minPerSession { continue }
                 if delta <= 0 { continue }
 
-                // cap at goal (optional but recommended)
+                // cap at goal (optional)
                 var applied = delta
                 if goal > 0 {
                     applied = min(delta, max(0, goal - currentProgress))
@@ -142,7 +140,8 @@ final class ChallengeStore: ObservableObject {
 
                 try await db.collection("challenges").document(doc.documentID).updateData([
                     "progress": FieldValue.increment(Int64(applied)),
-                    "participants.\(participantName)": FieldValue.increment(Int64(applied)),
+                    "participants.\(participantId)": FieldValue.increment(Int64(applied)),
+                    "participantNames.\(participantId)": displayName,
                     "updatedAt": Timestamp(date: Date())
                 ])
             }

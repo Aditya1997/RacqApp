@@ -4,13 +4,16 @@
 //  Created by Deets on 10/29/2025
 //  12/9/2025 - Updated to fill out dummy view
 //
+
 import SwiftUI
 
 struct CommunityView: View {
     @StateObject private var store = ChallengeStore()
+    @StateObject private var groupStore = GroupStore.shared
     @State private var showCreate = false
 
-    private let participantName = "You" // MVP identity for joined challenges
+    @AppStorage("displayName") private var displayName: String = "Anonymous"
+    private var participantId: String { UserIdentity.participantId() }
 
     var body: some View {
         NavigationView {
@@ -27,25 +30,24 @@ struct CommunityView: View {
 
                                 Spacer()
 
-                                // Join button / Joined label (NEW)
-                                if (challenge.participants[participantName] == nil) {
+                                if challenge.isJoined(participantId: participantId) {
+                                    Text("Joined")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                } else {
                                     Button("Join") {
                                         Task {
                                             if let id = challenge.id {
-                                                await store.joinChallenge(challengeId: id, participantName: participantName)
+                                                let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Anonymous" : displayName
+                                                await store.joinChallenge(challengeId: id, participantId: participantId, displayName: name)
                                             }
                                         }
                                     }
                                     .font(.caption)
                                     .buttonStyle(.bordered)
-                                } else {
-                                    Text("Joined")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
                                 }
 
-                                if let sponsor = challenge.sponsor,
-                                   !sponsor.isEmpty {
+                                if let sponsor = challenge.sponsor, !sponsor.isEmpty {
                                     Text(sponsor)
                                         .font(.caption2)
                                         .padding(.horizontal, 8)
@@ -56,13 +58,9 @@ struct CommunityView: View {
                                 }
                             }
 
-                            // PROGRESS BAR
-                            ProgressView(
-                                value: Double(challenge.progress),
-                                total: Double(challenge.goal)
-                            )
+                            ProgressView(value: Double(challenge.progress),
+                                         total: Double(challenge.goal))
 
-                            // PROGRESS NUMBERS
                             HStack {
                                 Text("\(challenge.progress)/\(challenge.goal)")
                                     .font(.caption)
@@ -70,42 +68,44 @@ struct CommunityView: View {
 
                                 Spacer()
 
-                                let pct = Int(
-                                    (Double(challenge.progress) /
-                                     max(1.0, Double(challenge.goal))) * 100
-                                )
-
+                                let pct = Int((Double(challenge.progress) / max(1.0, Double(challenge.goal))) * 100)
                                 Text("\(pct)%")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
+
+                            // Optional: show user's personal contribution if joined
+                            if challenge.isJoined(participantId: participantId) {
+                                let you = challenge.participantProgress(participantId: participantId)
+                                Text("You: \(you)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                            // Challenge Leaderboard (top 3 participants)
+                            ChallengeLeaderboardView(
+                                participants: challenge.participants,
+                                participantNames: challenge.participantNames,
+                                maxRows: 3
+                            )
+                            
                         }
                         .padding(.vertical, 8)
                     }
                 }
 
-                // MARK: - GROUPS  (UNCHANGED)
+                // MARK: - GROUPS (UNCHANGED)
                 Section(header: Text("Groups").font(.headline)) {
-
-                    groupRow(
-                        imageName: "person.3.fill",
-                        groupName: "Racq Players",
-                        preview: "Welcome to the group! New session this weekend…"
-                    )
-
-                    groupRow(
-                        imageName: "tennisball.fill",
-                        groupName: "Boston Tennis Crew",
-                        preview: "Who's playing tomorrow? We have 3 open spots…"
-                    )
-
-                    groupRow(
-                        imageName: "figure.run.circle.fill",
-                        groupName: "Beginners League",
-                        preview: "Reminder: Drills start at 6pm tonight!"
-                    )
+                    ForEach(GroupStore.shared.groups) { g in
+                        groupRow(
+                            imageName: g.icon,
+                            groupName: g.name,
+                            description: g.description ?? "",
+                            groupId: g.id
+                        )
+                    }
                 }
             }
+            .navigationTitle("Community")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button { showCreate = true } label: { Image(systemName: "plus") }
@@ -114,16 +114,22 @@ struct CommunityView: View {
             .sheet(isPresented: $showCreate) {
                 CreateChallengeView(store: store)
             }
-            .navigationTitle("Community")
-            .task { await store.fetchChallenges() }
+            .task {
+                await store.fetchChallenges()
+                await groupStore.fetchGroups()
+            }
+            .refreshable {
+                await store.fetchChallenges()
+                await groupStore.fetchGroups()
+            }
         }
     }
 
-    // MARK: - GROUP ROW COMPONENT
-    private func groupRow(imageName: String, groupName: String, preview: String) -> some View {
-        HStack(spacing: 14) {
+    private func groupRow(imageName: String, groupName: String, description: String, groupId: String) -> some View {
+        let joined = GroupMembership.getGroupIds().contains(groupId)
 
-            // Group icon placeholder
+        return HStack(spacing: 14) {
+
             ZStack {
                 Circle()
                     .fill(Color.blue.opacity(0.15))
@@ -146,9 +152,22 @@ struct CommunityView: View {
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .foregroundColor(.secondary)
+            if joined {
+                Text("Joined")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            } else {
+                Button("Join") {
+                    Task {
+                        await GroupStore.shared.joinGroup(
+                            groupId: groupId,
+                            displayName: displayName.isEmpty ? "Anonymous" : displayName
+                        )
+                    }
+                }
                 .font(.caption)
+                .buttonStyle(.bordered)
+            }
         }
         .padding(.vertical, 6)
     }

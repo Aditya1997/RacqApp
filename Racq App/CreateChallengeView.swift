@@ -13,12 +13,11 @@ struct CreateChallengeView: View {
 
     @State private var title: String = ""
     @State private var goalText: String = "100"
-
     @State private var trackedStat: ChallengeTrackedStat = .forehands
     @State private var minPerSessionText: String = "0"
-
     @State private var sponsor: String = ""
-    @State private var yourName: String = "You"
+
+    @AppStorage("displayName") private var displayName: String = "Anonymous"
 
     @State private var isSaving = false
     @State private var errorMessage: String?
@@ -26,6 +25,10 @@ struct CreateChallengeView: View {
     var body: some View {
         NavigationView {
             Form {
+                Section(header: Text("You")) {
+                    TextField("Your name", text: $displayName)
+                }
+
                 Section(header: Text("Challenge")) {
                     TextField("Title", text: $title)
 
@@ -44,14 +47,8 @@ struct CreateChallengeView: View {
                     TextField("Sponsor (optional)", text: $sponsor)
                 }
 
-                Section(header: Text("You")) {
-                    TextField("Your name (MVP)", text: $yourName)
-                }
-
                 if let errorMessage {
-                    Section {
-                        Text(errorMessage).foregroundColor(.red)
-                    }
+                    Section { Text(errorMessage).foregroundColor(.red) }
                 }
             }
             .navigationTitle("New Challenge")
@@ -80,14 +77,14 @@ struct CreateChallengeView: View {
             return
         }
 
-        let nameTrim = yourName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let participantName = nameTrim.isEmpty ? "You" : nameTrim
+        let minTrim = minPerSessionText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let minValue: Int? = minTrim.isEmpty ? nil : Int(minTrim)
 
         let sponsorTrim = sponsor.trimmingCharacters(in: .whitespacesAndNewlines)
         let sponsorValue: String? = sponsorTrim.isEmpty ? nil : sponsorTrim
 
-        let minTrim = minPerSessionText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let minValue: Int? = minTrim.isEmpty ? nil : Int(minTrim)
+        let pid = UserIdentity.participantId()
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Anonymous" : displayName
 
         isSaving = true
         defer { isSaving = false }
@@ -97,7 +94,8 @@ struct CreateChallengeView: View {
             title: t,
             goal: goal,
             progress: 0,
-            participants: [participantName: 0],   // creator auto-joined
+            participants: [pid: 0],              // creator auto-joined
+            participantNames: [pid: name],       // store their name
             sponsor: sponsorValue,
             trackedStat: trackedStat,
             minPerSession: minValue,
