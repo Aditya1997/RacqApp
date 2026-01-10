@@ -101,17 +101,22 @@ final class GroupStore: ObservableObject {
 
         do {
             let snapshot = try await db.collection("groups").getDocuments()
+            print("📦 Firestore groups docs found: \(snapshot.documents.count)")
 
             let fetched: [PlayerGroup] = snapshot.documents.compactMap { doc -> PlayerGroup? in
                 let data = doc.data()
+                print("🧾 group doc id=\(doc.documentID) data=\(data)")
 
                 guard
                     let name = data["name"] as? String,
-                    let description = data["description"] as? String,
                     let icon = data["icon"] as? String
                 else {
+                    print("⚠️ Skipping group \(doc.documentID): missing name or icon")
                     return nil
                 }
+
+                // Description and updatedAt is optional
+                let description = (data["description"] as? String)
 
                 let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
 
@@ -123,11 +128,10 @@ final class GroupStore: ObservableObject {
                     updatedAt: updatedAt
                 )
             }
-
             self.groups = fetched.sorted(by: { $0.updatedAt > $1.updatedAt })
-            print("✅ Loaded \(self.groups.count) groups")
+            print("✅ Loaded \(self.groups.count) groups into GroupStore")
         } catch {
-            print("❌ Error fetching groups: \(error.localizedDescription)")
+            print("❌ Error fetching groups: \(error)")
         }
     }
 

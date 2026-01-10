@@ -5,6 +5,11 @@
 //  12/9/2025 - Updated to fill out dummy view
 //
 
+//
+//  CommunityView.swift
+//  Racq App
+//
+
 import SwiftUI
 
 struct CommunityView: View {
@@ -18,92 +23,8 @@ struct CommunityView: View {
     var body: some View {
         NavigationView {
             List {
-                // MARK: - CHALLENGES
-                Section(header: Text("Challenges").font(.headline)) {
-                    ForEach(store.challenges) { challenge in
-                        VStack(alignment: .leading, spacing: 8) {
-
-                            // TITLE + OPTIONAL SPONSOR + JOIN/STATUS
-                            HStack {
-                                Text(challenge.title)
-                                    .font(.headline)
-
-                                Spacer()
-
-                                if challenge.isJoined(participantId: participantId) {
-                                    Text("Joined")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                } else {
-                                    Button("Join") {
-                                        Task {
-                                            if let id = challenge.id {
-                                                let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Anonymous" : displayName
-                                                await store.joinChallenge(challengeId: id, participantId: participantId, displayName: name)
-                                            }
-                                        }
-                                    }
-                                    .font(.caption)
-                                    .buttonStyle(.bordered)
-                                }
-
-                                if let sponsor = challenge.sponsor, !sponsor.isEmpty {
-                                    Text(sponsor)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .foregroundColor(.white)
-                                        .background(Color.blue.opacity(0.75))
-                                        .cornerRadius(6)
-                                }
-                            }
-
-                            ProgressView(value: Double(challenge.progress),
-                                         total: Double(challenge.goal))
-
-                            HStack {
-                                Text("\(challenge.progress)/\(challenge.goal)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-
-                                Spacer()
-
-                                let pct = Int((Double(challenge.progress) / max(1.0, Double(challenge.goal))) * 100)
-                                Text("\(pct)%")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            // Optional: show user's personal contribution if joined
-                            if challenge.isJoined(participantId: participantId) {
-                                let you = challenge.participantProgress(participantId: participantId)
-                                Text("You: \(you)")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                            // Challenge Leaderboard (top 3 participants)
-                            ChallengeLeaderboardView(
-                                participants: challenge.participants,
-                                participantNames: challenge.participantNames,
-                                maxRows: 3
-                            )
-                            
-                        }
-                        .padding(.vertical, 8)
-                    }
-                }
-
-                // MARK: - GROUPS (UNCHANGED)
-                Section(header: Text("Groups").font(.headline)) {
-                    ForEach(GroupStore.shared.groups) { g in
-                        groupRow(
-                            imageName: g.icon,
-                            groupName: g.name,
-                            description: g.description ?? "",
-                            groupId: g.id
-                        )
-                    }
-                }
+                challengesSection
+                groupsSection
             }
             .navigationTitle("Community")
             .toolbar {
@@ -125,6 +46,36 @@ struct CommunityView: View {
         }
     }
 
+    // MARK: - Sections
+
+    private var challengesSection: some View {
+        Section(header: Text("Challenges").font(.headline)) {
+            ForEach(store.challenges) { challenge in
+                challengeRow(challenge)
+            }
+        }
+    }
+
+    private var groupsSection: some View {
+        Section(header: Text("Groups").font(.headline)) {
+            if groupStore.groups.isEmpty {
+                Text("No eligible groups found.")
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(groupStore.groups) { g in
+                    groupRow(
+                        imageName: g.icon,
+                        groupName: g.name,
+                        description: g.description ?? "",
+                        groupId: g.id
+                    )
+                }
+            }
+        }
+    }
+    
+    // MARK: - Group Row
+
     private func groupRow(imageName: String, groupName: String, description: String, groupId: String) -> some View {
         let joined = GroupMembership.getGroupIds().contains(groupId)
 
@@ -144,7 +95,7 @@ struct CommunityView: View {
                 Text(groupName)
                     .font(.headline)
 
-                Text(preview)
+                Text(description)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
@@ -158,17 +109,105 @@ struct CommunityView: View {
                     .foregroundColor(.secondary)
             } else {
                 Button("Join") {
-                    Task {
-                        await GroupStore.shared.joinGroup(
-                            groupId: groupId,
-                            displayName: displayName.isEmpty ? "Anonymous" : displayName
-                        )
-                    }
+                    Task { await joinGroup(groupId: groupId) }
                 }
                 .font(.caption)
                 .buttonStyle(.bordered)
             }
         }
         .padding(.vertical, 6)
+    }
+
+    private func joinGroup(groupId: String) async {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty ? "Anonymous" : trimmed
+        await GroupStore.shared.joinGroup(groupId: groupId, displayName: name)
+        await groupStore.fetchGroups()
+    }
+
+    // MARK: - Challenge Row
+
+    private func challengeRow(_ challenge: Challenge) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+
+            // TITLE + OPTIONAL SPONSOR + JOIN/STATUS
+            HStack {
+                Text(challenge.title)
+                    .font(.headline)
+
+                Spacer()
+
+                if challenge.isJoined(participantId: participantId) {
+                    Text("Joined")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else {
+                    Button("Join") {
+                        Task { await joinChallengeIfPossible(challenge) }
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                }
+
+                if let sponsor = challenge.sponsor, !sponsor.isEmpty {
+                    Text(sponsor)
+                        .font(.caption2)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .foregroundColor(.white)
+                        .background(Color.blue.opacity(0.75))
+                        .cornerRadius(6)
+                }
+            }
+
+            ProgressView(value: Double(challenge.progress), total: Double(challenge.goal))
+
+            // PROGRESS NUMBERS
+            HStack {
+                Text("\(challenge.progress)/\(challenge.goal)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Text("\(challengePercent(challenge))%")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            // Optional: show user's personal contribution if joined
+            if challenge.isJoined(participantId: participantId) {
+                Text("You: \(challenge.participantProgress(participantId: participantId))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            // Challenge Leaderboard (top 3 participants)
+            ChallengeLeaderboardView(
+                participants: challenge.participants,
+                participantNames: challenge.participantNames,
+                maxRows: 3
+            )
+        }
+        .padding(.vertical, 8)
+    }
+
+    private func challengePercent(_ challenge: Challenge) -> Int {
+        let goal = max(1, challenge.goal)
+        let pct = Int((Double(challenge.progress) / Double(goal)) * 100.0)
+        return pct
+    }
+
+    private func joinChallengeIfPossible(_ challenge: Challenge) async {
+        guard let id = challenge.id else { return }
+
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = trimmed.isEmpty ? "Anonymous" : trimmed
+
+        await store.joinChallenge(
+            challengeId: id,
+            participantId: participantId,
+            displayName: name
+        )
     }
 }
