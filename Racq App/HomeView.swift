@@ -9,43 +9,6 @@ import SwiftUI
 import UIKit
 import WatchConnectivity
 
-//struct SwingSummaryCSV: Identifiable {
-//    let id = UUID()
-//    let timestamp: String
-//    let type: String
-//    let peak: Double
-//    let peakGyro: Double
-//    let duration: Double
-//}
-//
-//func loadSwingSummaryCSV(from url: URL) -> [SwingSummaryCSV] {
-//    guard let raw = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-//    let rows = raw.components(separatedBy: .newlines)
-//    guard rows.count > 1 else { return [] }
-//
-//    var results: [SwingSummaryCSV] = []
-//
-//    for row in rows.dropFirst() {
-//        let cols = row.components(separatedBy: ",")
-//        guard cols.count == 5 else { continue }
-//
-//        if let peak = Double(cols[2]), let peakGyro = Double(cols[3]),
-//           let duration = Double(cols[4]) {
-//
-//            results.append(
-//                SwingSummaryCSV(
-//                    timestamp: cols[0],
-//                    type: cols[1],
-//                    peak: peak,
-//                    peakGyro: peakGyro,
-//                    duration: duration
-//                )
-//            )
-//        }
-//    }
-//
-//    return results
-//}
 
 // MARK: - Colors and Icons
 private let blueGradient = LinearGradient(
@@ -102,7 +65,14 @@ struct HomeView: View { // Renamed from ContentView
     @ObservedObject var wc = PhoneWCManager.shared
     @State private var swings: [SwingSummaryCSV] = []
     @AppStorage("userHeightInInches") private var userHeight: Double = 70
-
+    @AppStorage("displayName") private var displayName: String = ""
+    @State private var showNameSetup = false
+    @StateObject private var profileStore = UserProfileStore()
+    
+    private var participantId: String {
+        UserIdentity.participantId()
+    }
+    
     var body: some View {
         NavigationView {
             ScrollView(showsIndicators: false) {
@@ -157,25 +127,25 @@ struct HomeView: View { // Renamed from ContentView
                                 ],
                                 spacing: 16
                             ) {
-                                SummaryCard(
+                                SummaryBlock(
                                     title: "Duration",
                                     value: format(wc.summaryDurationSec),
                                     icon: AnyView(Image(systemName: "clock.fill").foregroundColor(.white))
                                     //gradient: orangeGradient
                                 )
-                                SummaryCard(
+                                SummaryBlock(
                                     title: "Shots",
                                     value: "\(wc.summaryShotCount)",
                                     icon: AnyView(Image(systemName: "tennisball.fill").foregroundColor(.white))
                                     //gradient: greenGradient
                                 )
-                                SummaryCard(
+                                SummaryBlock(
                                     title: "Forehands",
                                     value: "\(wc.summaryforehandCount)",
                                     icon: AnyView(letterIcon("F"))
                                     //gradient: blueGradient
                                 )
-                                SummaryCard(
+                                SummaryBlock(
                                     title: "Backhands",
                                     value: "\(wc.summarybackhandCount)",
                                     icon: AnyView(letterIcon("B"))
@@ -226,13 +196,20 @@ struct HomeView: View { // Renamed from ContentView
             .padding()
             .navigationTitle("Racq Tracker")
             .navigationBarTitleDisplayMode(.inline)  // FIXES OVERLAP
+            // below contains the code for manual user height and name input (before profile-based height/wingspan and apple ID)
             .onAppear {
                 let userHeight = UserDefaults.standard.double(forKey: "userHeightInInches")
                 WCSession.default.sendMessage(["height": userHeight], replyHandler: nil)
-
                 if let url = wc.summaryCSVURL {
                     swings = loadSwingSummaryCSV(from: url)
                 }
+                let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    showNameSetup = true
+                }
+            }
+            .sheet(isPresented: $showNameSetup) {
+                NameSetupView()
             }
             .onChange(of: wc.summaryCSVURL) { newURL in
                 if let url = newURL {
@@ -250,40 +227,42 @@ private func format(_ sec: Int) -> String {
 }
 
 
-// MARK: - summaryBox
+// MARK: - SummaryBlock (single value)
 
-//private func summaryCard(
-//    title: String,
-//    value: String,
-//    iconView: some View,
-//    gradient: LinearGradient
-//) -> some View {
-//
-//    ZStack {   // ← FIXED SIZE OUTER CONTAINER
-//        RoundedRectangle(cornerRadius: 16)
-//            .fill(gradient)
-//            .shadow(color: .black.opacity(0.15), radius: 8, x: 0, y: 4)
-//
-//        VStack(alignment: .leading, spacing: 8) {
+//struct SummaryBlock: View {
+//    var title: String
+//    var value: String
+//    var icon: AnyView? = nil
+//    
+//    var body: some View {
+//        VStack(alignment: .leading, spacing: 6) {
 //            HStack {
-//                iconView
-//                    .frame(width: 28, height: 28)     // FORCE FIXED ICON SIZE
+//                if let icon = icon {
+//                    icon
+//                        .frame(width: 30, height: 30)
+//                }
 //                Spacer()
+//                Text(value)
+//                    .foregroundColor(.white)
+//                    .font(.system(size: 24, weight: .bold))
+//                    .minimumScaleFactor(0.7)
+//                    .lineLimit(1)
 //            }
-//
-//            Text(value)
-//                .font(.system(size: 22, weight: .bold))
-//                .foregroundColor(.white)
-//                .lineLimit(1)
-//                .minimumScaleFactor(0.5)
-//
 //            Text(title)
-//                .font(.caption)
 //                .foregroundColor(.white.opacity(0.85))
+//                .font(.system(size: 14, weight: .medium))
 //                .lineLimit(1)
-//                .minimumScaleFactor(0.8)
+//                .minimumScaleFactor(0.7)
 //        }
-//        .padding()
+//        .padding(.vertical,6)
+//        .padding(.horizontal,12)
+//        .frame(height: 85)
+//        .background(
+//            RoundedRectangle(cornerRadius: 15).fill(.ultraThinMaterial)
+//        )
+//        .overlay(
+//            RoundedRectangle(cornerRadius: 15).stroke(Color.white.opacity(0.08), lineWidth: 1)
+//        )
+//        .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 3)
 //    }
-//    .frame(height: 135)
 //}

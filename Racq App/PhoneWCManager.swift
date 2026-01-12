@@ -119,20 +119,22 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
             )
             let pid = UserIdentity.participantId()
             let name = UserIdentity.displayName()
-
             Task { @MainActor in
                 let store = ChallengeStore()
                 await store.applySessionToJoinedChallenges(summary, participantId: pid, displayName: name)
+
             }
-            
             let groupIds = GroupMembership.getGroupIds()
             Task { @MainActor in
                 await GroupStore.shared.applySessionToGroupLeaderboards(
                     summary: summary,
                     participantId: pid,
                     displayName: name,
-                    groupIds: groupIds
-                )
+                    groupIds: groupIds)
+                await UserSessionStore().saveSessionAndIncrementStats(participantId: UserIdentity.participantId(),
+                    displayName: name,
+                    summary: summary,
+                    csvURL: csvURL)
             }
         }
     }

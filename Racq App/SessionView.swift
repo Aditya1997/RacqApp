@@ -15,36 +15,6 @@ struct SwingSummaryCSV: Identifiable {
     let duration: Double
 }
 
-func loadSwingSummaryCSV(from url: URL) -> [SwingSummaryCSV] {
-    guard let raw = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-    let rows = raw.components(separatedBy: .newlines)
-    guard rows.count > 1 else { return [] }
-
-    var results: [SwingSummaryCSV] = []
-
-    for row in rows.dropFirst() {
-        let cols = row.components(separatedBy: ",")
-        guard cols.count == 5 else { continue }
-
-        if let peak = Double(cols[2]), let peakGyro = Double(cols[3]),
-           let duration = Double(cols[4]) {
-
-            results.append(
-                SwingSummaryCSV(
-                    timestamp: cols[0],
-                    type: cols[1],
-                    peak: peak,
-                    peakGyro: peakGyro,
-                    duration: duration
-                )
-            )
-        }
-    }
-
-    return results
-}
-
-
 struct SessionView: View {
     @ObservedObject var wc = PhoneWCManager.shared
     @State private var swings: [SwingSummaryCSV] = []
@@ -75,15 +45,16 @@ struct SessionView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                DetailedSummaryCard(
-                    shots: wc.summaryShotCount,
-                    durationSec: wc.summaryDurationSec,
-                    heartRate: wc.summaryHeartRate,
-                    csvURL: wc.csvURL,
-                    forehandCount: wc.summaryforehandCount,
-                    backhandCount: wc.summarybackhandCount,
-                    swings: swings,
-                )
+                Text("No need for detailed card.")
+//                DetailedSummaryCard(
+//                    shots: wc.summaryShotCount,
+//                    durationSec: wc.summaryDurationSec,
+//                    heartRate: wc.summaryHeartRate,
+//                    csvURL: wc.csvURL,
+//                    forehandCount: wc.summaryforehandCount,
+//                    backhandCount: wc.summarybackhandCount,
+//                    swings: swings
+                //)
             }
             Spacer()
         }
@@ -211,138 +182,138 @@ struct PlayerHeightView: View {
     }
 }
 
-// MARK: - Summary Card
-private struct DetailedSummaryCard: View {
-    let shots: Int
-    let durationSec: Int
-    let heartRate: Double
-    let csvURL: URL?
-    // 🟢 NEW:
-    let forehandCount: Int
-    let backhandCount: Int
-    let swings: [SwingSummaryCSV]
-    @AppStorage("userHeightInInches") private var userHeight: Double = 70
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            
-            Text("Session Summary")
-                .font(.title2).bold()
-            
-            HStack {
-                stat(title: "Shots", value: "\(shots)")
-                Spacer()
-                stat(title: "Duration", value: format(durationSec))
-                Spacer()
-                stat(title: "Heart", value: "\(Int(heartRate)) BPM")
-            }
-
-            // 🟢 NEW: Add FH/BH row
-            HStack {
-               stat(title: "Forehands", value: "\(forehandCount)")
-                   .foregroundColor(.yellow)
-               Spacer()
-               stat(title: "Backhands", value: "\(backhandCount)")
-                   .foregroundColor(.cyan)
-           }
-            
-            if !swings.isEmpty {
-                Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Swing Details")
-                        .font(.headline)
-                    Text("Avg Peak Acc: \(avgPeakAcc(), specifier: "%.2f") g")
-                    Text("Avg Peak Angular Velocity: \(avgPeakRotVelocity(), specifier: "%.2f") rad/s")
-                    Text("Avg Peak RH Velocity (est): \(String(format: "%.2f", SwingMath.avgRHSpeed(swings: swings, height: userHeight))) mph")
-                    Text("Maximum Angular Velocity: \(peakRotVelocity(), specifier: "%.2f") rad/s")
-                    Text("Maximum RH Velocity (est): \(String(format: "%.2f", SwingMath.maxRHSpeed(swings: swings, height: userHeight))) mph")
-                    Text("Avg Duration: \(avgDuration(), specifier: "%.2f") s")
-                    Text("Total Swings: \(swings.count)")
-                }
-            }
-            if let url = csvURL {
-                Button {
-                    shareCSV(url)
-                } label: {
-                    Label("Share CSV", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(12)
-                }
-            } else {
-                HStack {
-                    ProgressView()
-                    Text("Preparing CSV…")
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity)
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(16)
-    }
-
-    private func peakRotVelocity() -> Double {
-        guard !swings.isEmpty else { return 0 }
-        return swings.map { $0.peakGyro }.max() ?? 0
-    }
-    
-    private func avgPeakRotVelocity() -> Double {
-        guard !swings.isEmpty else { return 0 }
-        return swings.map { $0.peakGyro }.reduce(0, +) / Double(swings.count)
-    }
-    
-    private func avgPeakAcc() -> Double {
-        guard !swings.isEmpty else { return 0 }
-        return swings.map { $0.peak }.reduce(0, +) / Double(swings.count)
-    }
-    
-    private func peakAcc() -> Double {
-        guard !swings.isEmpty else { return 0 }
-        return swings.map { $0.peak }.max() ?? 0
-    }
-
-    private func avgDuration() -> Double {
-        guard !swings.isEmpty else { return 0 }
-        return swings.map { $0.duration }.reduce(0, +) / Double(swings.count)
-    }
-    
-    private func avgRHSpeed() -> Double {
-        guard !swings.isEmpty else { return 0 }
-        let avgPeakRotVelocity = swings.map { $0.peakGyro }.reduce(0, +) / Double(swings.count)
-        return avgPeakRotVelocity * ((userHeight * 0.38) + 11.5) / 17.6
-    }
-
-    private func maxRHSpeed() -> Double {
-        guard !swings.isEmpty else { return 0 }
-        let peakRotVelocity = swings.map { $0.peakGyro }.max() ?? 0
-        return peakRotVelocity * ((userHeight * 0.38) + 11.5) / 17.6
-    }
-    
-    private func stat(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption).foregroundColor(.secondary)
-            Text(value).font(.headline)
-        }
-    }
-
-    private func format(_ sec: Int) -> String {
-        let m = sec / 60
-        let s = sec % 60
-        return String(format: "%02d:%02d", m, s)
-    }
-    
-    private func shareCSV(_ url: URL) {
-        let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?.keyWindow?.rootViewController?
-            .present(vc, animated: true)
-    }
-}
+//// MARK: - Summary Card
+//private struct DetailedSummaryCard: View {
+//    let shots: Int
+//    let durationSec: Int
+//    let heartRate: Double
+//    let csvURL: URL?
+//    // 🟢 NEW:
+//    let forehandCount: Int
+//    let backhandCount: Int
+//    let swings: [SwingSummaryCSV]
+//    @AppStorage("userHeightInInches") private var userHeight: Double = 70
+//    
+//    var body: some View {
+//        VStack(alignment: .leading, spacing: 14) {
+//            
+//            Text("Session Summary")
+//                .font(.title2).bold()
+//            
+//            HStack {
+//                stat(title: "Shots", value: "\(shots)")
+//                Spacer()
+//                stat(title: "Duration", value: format(durationSec))
+//                Spacer()
+//                stat(title: "Heart", value: "\(Int(heartRate)) BPM")
+//            }
+//
+//            // 🟢 NEW: Add FH/BH row
+//            HStack {
+//               stat(title: "Forehands", value: "\(forehandCount)")
+//                   .foregroundColor(.yellow)
+//               Spacer()
+//               stat(title: "Backhands", value: "\(backhandCount)")
+//                   .foregroundColor(.cyan)
+//           }
+//            
+//            if !swings.isEmpty {
+//                Divider()
+//                VStack(alignment: .leading, spacing: 8) {
+//                    Text("Swing Details")
+//                        .font(.headline)
+//                    Text("Avg Peak Acc: \(avgPeakAcc(), specifier: "%.2f") g")
+//                    Text("Avg Peak Angular Velocity: \(avgPeakRotVelocity(), specifier: "%.2f") rad/s")
+//                    Text("Avg Peak RH Velocity (est): \(String(format: "%.2f", SwingMath.avgRHSpeed(swings: swings, height: userHeight))) mph")
+//                    Text("Maximum Angular Velocity: \(peakRotVelocity(), specifier: "%.2f") rad/s")
+//                    Text("Maximum RH Velocity (est): \(String(format: "%.2f", SwingMath.maxRHSpeed(swings: swings, height: userHeight))) mph")
+//                    Text("Avg Duration: \(avgDuration(), specifier: "%.2f") s")
+//                    Text("Total Swings: \(swings.count)")
+//                }
+//            }
+//            if let url = csvURL {
+//                Button {
+//                    shareCSV(url)
+//                } label: {
+//                    Label("Share CSV", systemImage: "square.and.arrow.up")
+//                        .frame(maxWidth: .infinity)
+//                        .padding()
+//                        .background(Color.blue)
+//                        .foregroundColor(.white)
+//                        .cornerRadius(12)
+//                }
+//            } else {
+//                HStack {
+//                    ProgressView()
+//                    Text("Preparing CSV…")
+//                        .foregroundColor(.secondary)
+//                }
+//            }
+//        }
+//        .padding()
+//        .frame(maxWidth: .infinity)
+//        .background(Color(UIColor.secondarySystemBackground))
+//        .cornerRadius(16)
+//    }
+//
+//    private func peakRotVelocity() -> Double {
+//        guard !swings.isEmpty else { return 0 }
+//        return swings.map { $0.peakGyro }.max() ?? 0
+//    }
+//    
+//    private func avgPeakRotVelocity() -> Double {
+//        guard !swings.isEmpty else { return 0 }
+//        return swings.map { $0.peakGyro }.reduce(0, +) / Double(swings.count)
+//    }
+//    
+//    private func avgPeakAcc() -> Double {
+//        guard !swings.isEmpty else { return 0 }
+//        return swings.map { $0.peak }.reduce(0, +) / Double(swings.count)
+//    }
+//    
+//    private func peakAcc() -> Double {
+//        guard !swings.isEmpty else { return 0 }
+//        return swings.map { $0.peak }.max() ?? 0
+//    }
+//
+//    private func avgDuration() -> Double {
+//        guard !swings.isEmpty else { return 0 }
+//        return swings.map { $0.duration }.reduce(0, +) / Double(swings.count)
+//    }
+//    
+//    private func avgRHSpeed() -> Double {
+//        guard !swings.isEmpty else { return 0 }
+//        let avgPeakRotVelocity = swings.map { $0.peakGyro }.reduce(0, +) / Double(swings.count)
+//        return avgPeakRotVelocity * ((userHeight * 0.38) + 11.5) / 17.6
+//    }
+//
+//    private func maxRHSpeed() -> Double {
+//        guard !swings.isEmpty else { return 0 }
+//        let peakRotVelocity = swings.map { $0.peakGyro }.max() ?? 0
+//        return peakRotVelocity * ((userHeight * 0.38) + 11.5) / 17.6
+//    }
+//    
+//    private func stat(title: String, value: String) -> some View {
+//        VStack(alignment: .leading, spacing: 4) {
+//            Text(title).font(.caption).foregroundColor(.secondary)
+//            Text(value).font(.headline)
+//        }
+//    }
+//
+//    private func format(_ sec: Int) -> String {
+//        let m = sec / 60
+//        let s = sec % 60
+//        return String(format: "%02d:%02d", m, s)
+//    }
+//    
+//    private func shareCSV(_ url: URL) {
+//        let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+//        UIApplication.shared.connectedScenes
+//            .compactMap { $0 as? UIWindowScene }
+//            .first?.keyWindow?.rootViewController?
+//            .present(vc, animated: true)
+//    }
+//}
 
 #Preview {
     SessionView()

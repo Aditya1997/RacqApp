@@ -10,12 +10,12 @@ import PhotosUI
 struct ProfileView: View {
     @ObservedObject var wc = PhoneWCManager.shared
 
-    // MARK: - Persistent Profile Info
-    @AppStorage("dateJoined") private var dateJoined = "Jan 2025"
-    @AppStorage("sessionsCompleted") private var sessionsCompleted = 42
-    @AppStorage("totalHits") private var totalHits = 1280
-    @AppStorage("hardestHit") private var hardestHit = "87 mph"
-
+    // MARK: - Persistent Profile Info and Past Sessions
+    @StateObject private var sessionStore = UserSessionStore()
+    private var participantId: String { UserIdentity.participantId() }
+    @StateObject private var profileStore = UserProfileStore()
+    @AppStorage("displayName") private var displayName: String = "Anonymous"
+    
     @AppStorage("racket") private var racket = "Wilson Blade 98"
     @AppStorage("shoes") private var shoes = "Nike Vapor Pro"
     @AppStorage("bag") private var bag = "Babolat Classic"
@@ -24,7 +24,7 @@ struct ProfileView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @AppStorage("profileImageData") private var profileImageData: Data?
     @State private var profileImage: UIImage?
-
+    
     // MARK: - Editing Sheet Control
     @State private var editingField: EditingField?
     @State private var tempText = ""
@@ -37,8 +37,7 @@ struct ProfileView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 28) {
-
-                // MARK: - Profile Icon (NOW PICKABLE)
+                // MARK: - Profile Icon
                 VStack(spacing: 12) {
                     PhotosPicker(selection: $selectedPhoto, matching: .images) {
                         Group {
@@ -62,39 +61,52 @@ struct ProfileView: View {
                         loadImage(from: newItem)
                     }
 
-                    Text("Player Profile")
+                    Text(displayName)
                         .font(.title2.bold())
                         .foregroundColor(.white)
                 }
                 .padding(.top, 16)
 
-                // MARK: - Player Stats Card (UNCHANGED)
+                // MARK: - Player Stats Card
                 VStack(alignment: .leading, spacing: 18) {
 
                     Text("Player Stats")
                         .font(.headline)
                         .foregroundColor(.white)
 
+                    let p = profileStore.profile
+
                     VStack(spacing: 24) {
 
                         // -------- ROW 1 --------
                         HStack(spacing: 20) {
-                            statBox(title: "Date Joined",
-                                    value: dateJoined,
-                                    icon: "calendar")
-                            statBox(title: "Sessions Completed",
-                                    value: "\(sessionsCompleted)",
-                                    icon: "figure.run")
+                            statBox(
+                                title: "Date Joined",
+                                value: p == nil ? "--" : formattedDate(p!.dateJoined),
+                                icon: "calendar"
+                            )
+
+                            statBox(
+                                title: "Sessions Completed",
+                                value: "\(p?.sessionsCompleted ?? 0)",
+                                icon: "figure.run"
+                            )
                         }
 
                         // -------- ROW 2 --------
                         HStack(spacing: 20) {
-                            statBox(title: "Total Hits",
-                                    value: "\(totalHits)",
-                                    icon: "bolt.circle")
-                            statBox(title: "Hardest Hit",
-                                    value: hardestHit,
-                                    icon: "speedometer")
+                            statBox(
+                                title: "Total Hits",
+                                value: "\(p?.totalHits ?? 0)",
+                                icon: "bolt.circle"
+                            )
+
+                            // For now, show total duration as a placeholder (until we wire fastestSwing later)
+                            statBox(
+                                title: "Total Duration",
+                                value: formatDuration(p?.totalDurationSec ?? 0),
+                                icon: "clock"
+                            )
                         }
                     }
                     .padding()
@@ -105,8 +117,8 @@ struct ProfileView: View {
                             .stroke(Color.white.opacity(0.10), lineWidth: 1)
                     )
                 }
-
-                // MARK: - Equipment Card (NOW EDITABLE)
+                
+                // MARK: - Equipment Card
                 VStack(alignment: .leading, spacing: 18) {
 
                     Text("Equipment")
@@ -140,8 +152,26 @@ struct ProfileView: View {
                             .stroke(Color.white.opacity(0.10), lineWidth: 1)
                     )
                 }
+                
+                // MARK: - Past Sessions
 
-                Spacer(minLength: 20)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Past Sessions")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    if sessionStore.sessions.isEmpty {
+                        Text("No sessions saved yet.")
+                            .foregroundColor(.white.opacity(0.6))
+                            .font(.subheadline)
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(sessionStore.sessions.prefix(10)) { s in
+                                sessionRow(s)
+                            }
+                        }
+                    }
+                }
             }
             .padding(.horizontal)
         }
@@ -151,7 +181,13 @@ struct ProfileView: View {
         .sheet(item: $editingField) { field in
             editSheet(for: field)
         }
-        .onAppear { loadStoredImage() }
+        .onAppear {
+            loadStoredImage()
+            Task {
+                await profileStore.fetchProfile(participantId: participantId)
+                await sessionStore.fetchSessions(participantId: participantId)
+            }
+        }
     }
 
     // MARK: - Load Photo
@@ -213,7 +249,51 @@ struct ProfileView: View {
     }
 }
 
-// MARK: - Existing Stylish Stat Box (UNCHANGED)
+// MARK: - Session Helpers (outside of ProfileView)
+
+private func sessionRow(_ s: UserSession) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+        Text(formattedDate(s.timestamp))
+            .font(.subheadline.weight(.semibold))
+            .foregroundColor(.white)
+
+        HStack {
+            Text("Shots \(s.shotCount)")
+            Spacer()
+            Text("FH \(s.forehandCount)")
+            Spacer()
+            Text("BH \(s.backhandCount)")
+        }
+        .font(.caption)
+        .foregroundColor(.white.opacity(0.75))
+
+        HStack {
+            Text("Dur \(formatDuration(s.durationSec))")
+            Spacer()
+            Text(s.heartRate > 0 ? "\(Int(s.heartRate)) BPM" : "-- BPM")
+        }
+        .font(.caption2)
+        .foregroundColor(.white.opacity(0.6))
+    }
+    .padding(12)
+    .background(Color.white.opacity(0.06))
+    .cornerRadius(12)
+}
+
+private func formattedDate(_ date: Date) -> String {
+    let f = DateFormatter()
+    f.dateStyle = .medium
+    f.timeStyle = .short
+    return f.string(from: date)
+}
+
+private func formatDuration(_ sec: Int) -> String {
+    let m = sec / 60
+    let s = sec % 60
+    return String(format: "%02d:%02d", m, s)
+}
+
+// MARK: - Existing Stat Box
 private func statBox(title: String, value: String, icon: String) -> some View {
     VStack(alignment: .leading, spacing: 6) {
 

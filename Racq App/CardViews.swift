@@ -7,9 +7,9 @@
 
 import SwiftUI
 
-// MARK: - SummaryCard (single value)
+// MARK: - SummaryBlock (single value)
 
-struct SummaryCard: View {
+struct SummaryBlock: View {
     var title: String
     var value: String
     var icon: AnyView? = nil

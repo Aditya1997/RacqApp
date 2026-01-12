@@ -8,6 +8,12 @@
 import SwiftUI
 
 struct ContentView: View {
+    
+    // Ensuring profile exists
+    @StateObject private var profileStore = UserProfileStore()
+    @AppStorage("displayName") private var displayName: String = "Anonymous"
+    private var participantId: String { UserIdentity.participantId() }
+    
     var body: some View {
         TabView {
             // 🏠 HOME DASHBOARD
@@ -17,11 +23,17 @@ struct ContentView: View {
                 }
 
             // 🎯 RECORD (you can swap in RecordView.swift here)
-            SessionView()
+            RecordView()
                 .tabItem {
-                    Label("Sessions", systemImage: "record.circle")
+                    Label("Record", systemImage: "record.circle")
                 }
 
+            // 🎯 MAP (you can swap in MapView.swift here)
+            //MapView()
+            //    .tabItem {
+            //        Label("Map", systemImage: "map")
+            //    }
+            
             // 👥 COMMUNITY TAB
             CommunityView()
                 .tabItem {
@@ -33,6 +45,13 @@ struct ContentView: View {
                 .tabItem {
                     Label("Profile", systemImage: "person.fill")
                 }
+        }
+        .task {
+               let id = participantId
+               print("👤 participantId:", id)
+
+               await profileStore.ensureUserExists(participantId: id, displayName: displayName)
+               await profileStore.fetchProfile(participantId: id)
         }
     }
 }
