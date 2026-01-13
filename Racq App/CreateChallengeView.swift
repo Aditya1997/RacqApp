@@ -4,6 +4,12 @@
 //
 //  Created by Deets on 1/9/26.
 //
+//
+//  CreateChallengeView.swift
+//  Racq App
+//
+//  Created by Deets on 1/9/26.
+//
 
 import SwiftUI
 
@@ -17,6 +23,7 @@ struct CreateChallengeView: View {
     @State private var minPerSessionText: String = "0"
     @State private var sponsor: String = ""
 
+    // ✅ Use saved name, but do NOT edit it here
     @AppStorage("displayName") private var displayName: String = "Anonymous"
 
     @State private var isSaving = false
@@ -25,10 +32,14 @@ struct CreateChallengeView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("You")) {
-                    TextField("Your name", text: $displayName)
-                }
 
+                Section(header: Text("Creator")) {
+                    HStack {
+                        Text(displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Anonymous" : displayName)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
                 Section(header: Text("Challenge")) {
                     TextField("Title", text: $title)
 
@@ -84,7 +95,10 @@ struct CreateChallengeView: View {
         let sponsorValue: String? = sponsorTrim.isEmpty ? nil : sponsorTrim
 
         let pid = UserIdentity.participantId()
-        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Anonymous" : displayName
+
+        // ✅ Use saved displayName, but do not edit it here
+        let cleanName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let creatorName = cleanName.isEmpty ? "Anonymous" : cleanName
 
         isSaving = true
         defer { isSaving = false }
@@ -95,7 +109,7 @@ struct CreateChallengeView: View {
             goal: goal,
             progress: 0,
             participants: [pid: 0],              // creator auto-joined
-            participantNames: [pid: name],       // store their name
+            participantNames: [pid: creatorName],// store their name
             sponsor: sponsorValue,
             trackedStat: trackedStat,
             minPerSession: minValue,

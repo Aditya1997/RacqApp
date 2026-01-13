@@ -136,7 +136,17 @@ struct CommunityView: View {
                     .font(.headline)
 
                 Spacer()
-
+                
+                if let sponsor = challenge.sponsor, !sponsor.isEmpty {
+                    Text(sponsor)
+                        .font(.caption2)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .foregroundColor(.white)
+                        .background(Color.blue.opacity(0.75))
+                        .cornerRadius(6)
+                }
+                
                 if challenge.isJoined(participantId: participantId) {
                     Text("Joined")
                         .font(.caption2)
@@ -149,15 +159,6 @@ struct CommunityView: View {
                     .buttonStyle(.bordered)
                 }
 
-                if let sponsor = challenge.sponsor, !sponsor.isEmpty {
-                    Text(sponsor)
-                        .font(.caption2)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .foregroundColor(.white)
-                        .background(Color.blue.opacity(0.75))
-                        .cornerRadius(6)
-                }
             }
 
             ProgressView(value: Double(challenge.progress), total: Double(challenge.goal))

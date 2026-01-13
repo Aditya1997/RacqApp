@@ -37,7 +37,7 @@ struct ContentView: View {
             // 👥 COMMUNITY TAB
             CommunityView()
                 .tabItem {
-                    Label("Groups", systemImage: "person.3.fill")
+                    Label("Community", systemImage: "person.3.fill")
                 }
 
             // ⚙️ SETTINGS

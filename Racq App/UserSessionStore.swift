@@ -15,12 +15,13 @@ final class UserSessionStore: ObservableObject {
     @Published var sessions: [UserSession] = []
 
     private var db: Firestore { FirebaseManager.shared.db }
-
+    
     func saveSessionAndIncrementStats(
         participantId: String,
         displayName: String,
         summary: SessionSummary,
-        csvURL: URL?
+        csvURL: URL?,
+        timestampISO: String
     ) async {
         guard FirebaseApp.app() != nil else {
             print("⚠️ Firebase not configured yet")
@@ -28,7 +29,7 @@ final class UserSessionStore: ObservableObject {
         }
 
         let userRef = db.collection("users").document(participantId)
-        let sessionRef = userRef.collection("sessions").document(UUID().uuidString)
+        let sessionRef = userRef.collection("sessions").document(timestampISO)
 
         do {
             // 1) Save session document
@@ -58,37 +59,6 @@ final class UserSessionStore: ObservableObject {
             print("❌ saveSessionAndIncrementStats error: \(error)")
         }
     }
-    
-//    func saveSession(participantId: String, displayName: String, summary: SessionSummary, csvURL: URL?) async {
-//        guard FirebaseApp.app() != nil else {
-//            print("⚠️ Firebase not configured yet")
-//            return
-//        }
-//
-//        let sessionId = UUID().uuidString
-//        let ref = db.collection("users")
-//            .document(participantId)
-//            .collection("sessions")
-//            .document(sessionId)
-//
-//        let data: [String: Any] = [
-//            "timestamp": Timestamp(date: Date()),
-//            "shotCount": summary.shotCount,
-//            "forehandCount": summary.forehandCount,
-//            "backhandCount": summary.backhandCount,
-//            "durationSec": summary.durationSec,
-//            "heartRate": summary.heartRate,
-//            "displayName": displayName,
-//            "csvFileName": csvURL?.lastPathComponent as Any
-//        ]
-//
-//        do {
-//            try await ref.setData(data, merge: true)
-//            print("✅ Saved session \(sessionId) for user \(participantId)")
-//        } catch {
-//            print("❌ Failed to save session: \(error)")
-//        }
-//    }
 
     func fetchSessions(participantId: String, limit: Int = 50) async {
         guard FirebaseApp.app() != nil else {

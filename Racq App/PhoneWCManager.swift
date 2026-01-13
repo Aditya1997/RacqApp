@@ -134,7 +134,8 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
                 await UserSessionStore().saveSessionAndIncrementStats(participantId: UserIdentity.participantId(),
                     displayName: name,
                     summary: summary,
-                    csvURL: csvURL)
+                    csvURL: csvURL,
+                    timestampISO: ts)
             }
         }
     }
