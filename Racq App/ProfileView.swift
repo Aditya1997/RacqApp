@@ -100,7 +100,16 @@ struct ProfileView: View {
                                 value: "\(p?.totalHits ?? 0)",
                                 icon: "bolt.circle"
                             )
-
+                            
+                            statBox(
+                                title: "Fastest Swing",
+                                value: {
+                                    let swing = p?.fastestSwing ?? 0
+                                    return swing > 0 ? "\(Int(swing)) mph" : "N/A"
+                                }(),
+                                icon: "speedometer"
+                            )
+                            
                             // For now, show total duration as a placeholder (until we wire fastestSwing later)
                             statBox(
                                 title: "Total Duration",
@@ -271,6 +280,8 @@ private func sessionRow(_ s: UserSession) -> some View {
             Text("Dur \(formatDuration(s.durationSec))")
             Spacer()
             Text(s.heartRate > 0 ? "\(Int(s.heartRate)) BPM" : "-- BPM")
+            Spacer()
+            Text(s.fastestSwing > 0 ? "\(Int(s.fastestSwing)) mph" : "-- mph")
         }
         .font(.caption2)
         .foregroundColor(.white.opacity(0.6))

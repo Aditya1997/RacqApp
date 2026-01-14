@@ -22,7 +22,8 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var summaryTimestampISO: String = ""
     @Published var summaryforehandCount: Int = 0
     @Published var summarybackhandCount: Int = 0
-
+    @Published var summaryFastestSwing: Double = 0
+    
     // CSV file received from watch
     @Published var csvURL: URL?
     @Published var summaryCSVURL: URL?
@@ -92,11 +93,7 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     // MARK: - Handle Summary Data
     private func applySummary(_ dict: [String: Any]) {
         if let shots = dict["shotCount"] as? Int { summaryShotCount = shots }
-        //if let dur = dict["duration"] as? Int {
-        //    summaryDurationSec = dur
-        //} else {
-        //    print("⚠️ No duration in summary message: \(dict)")
-        //}
+        if let fast = dict["fastestSwing"] as? Double { summaryFastestSwing = fast}
         if let dur = dict["durationSec"] as? Int ?? dict["duration"] as? Int { summaryDurationSec = dur }
         if let hr = dict["heartRate"] as? Double { summaryHeartRate = hr }
         if let ts = dict["timestampISO"] as? String ?? dict["timestamp"] as? String { summaryTimestampISO = ts }
@@ -111,11 +108,12 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
             lastAppliedSessionTimestampISO = ts
             let summary = SessionSummary(
                 shotCount: summaryShotCount,
-                durationSec: summaryDurationSec,
-                heartRate: summaryHeartRate,
-                timestampISO: summaryTimestampISO,
                 forehandCount: summaryforehandCount,
-                backhandCount: summarybackhandCount
+                backhandCount: summarybackhandCount,
+                durationSec: summaryDurationSec,
+                fastestSwing: 0,
+                heartRate: summaryHeartRate,
+                timestampISO: summaryTimestampISO
             )
             let pid = UserIdentity.participantId()
             let name = UserIdentity.displayName()
@@ -131,7 +129,8 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
                     participantId: pid,
                     displayName: name,
                     groupIds: groupIds)
-                await UserSessionStore().saveSessionAndIncrementStats(participantId: UserIdentity.participantId(),
+                await UserSessionStore().saveSessionAndIncrementStats(
+                    participantId: UserIdentity.participantId(),
                     displayName: name,
                     summary: summary,
                     csvURL: csvURL,
@@ -148,6 +147,30 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
         let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
         let dest = docs.appendingPathComponent(file.fileURL.lastPathComponent)
 
+        let swings = loadSwingSummaryCSV(from: dest)
+        let height = UserDefaults.standard.double(forKey: "userHeightInInches")
+
+        let fhMax = SwingMath.maxFHSpeed(swings: swings, height: height)
+        let bhMax = SwingMath.maxBHSpeed(swings: swings, height: height)
+        let fastest = max(fhMax, bhMax)
+
+        summaryFastestSwing = fastest
+
+        // ✅ Patch Firestore for this session + profile fastest
+        Task {
+            let participantId = UserIdentity.participantId()
+            let sessionId = self.lastAppliedSessionTimestampISO.isEmpty ? self.lastAppliedSessionTimestampISO : self.lastAppliedSessionTimestampISO
+            if !sessionId.isEmpty {
+                await UserSessionStore().updateFastestSwingForSession(
+                    participantId: participantId,
+                    sessionId: sessionId,
+                    fastestSwing: fastest
+                )
+            } else {
+                print("⚠️ No sessionId available to patch fastest swing")
+            }
+        }
+        
         do {
             if fm.fileExists(atPath: dest.path) {
                 try fm.removeItem(at: dest)

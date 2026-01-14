@@ -44,8 +44,8 @@ final class UserProfileStore: ObservableObject {
                     "totalHits": 0,
                     "totalForehands": 0,
                     "totalBackhands": 0,
-                    "totalDurationSec": 0
-                    //"fastestSwing": 0.00
+                    "totalDurationSec": 0,
+                    "fastestSwing": 0.00
                 ]
             ], merge: true)
 
@@ -77,7 +77,7 @@ final class UserProfileStore: ObservableObject {
             let totalForehands = stats["totalForehands"] as? Int ?? 0
             let totalBackhands = stats["totalBackhands"] as? Int ?? 0
             let totalDurationSec = stats["totalDurationSec"] as? Int ?? 0
-            //let fastestSwing = stats["fastestSwing"] as? Double ?? 0.00
+            let fastestSwing = stats["fastestSwing"] as? Double ?? 0.00
 
             self.profile = UserProfile(
                 displayName: displayName,
@@ -86,8 +86,8 @@ final class UserProfileStore: ObservableObject {
                 totalHits: totalHits,
                 totalForehands: totalForehands,
                 totalBackhands: totalBackhands,
-                totalDurationSec: totalDurationSec
-                //fastestSwing: fastestSwing
+                totalDurationSec: totalDurationSec,
+                fastestSwing: fastestSwing
             )
         } catch {
             print("❌ fetchProfile error: \(error)")

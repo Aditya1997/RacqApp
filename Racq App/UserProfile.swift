@@ -16,7 +16,7 @@ struct UserProfile {
     var totalForehands: Int
     var totalBackhands: Int
     var totalDurationSec: Int
-    //var fastestSwing: Double
+    var fastestSwing: Double
 
     static func empty(displayName: String) -> UserProfile {
         UserProfile(
@@ -26,8 +26,8 @@ struct UserProfile {
             totalHits: 0,
             totalForehands: 0,
             totalBackhands: 0,
-            totalDurationSec: 0
-            //fastestSwing: 0.00
+            totalDurationSec: 0,
+            fastestSwing: 0.00
         )
     }
 }

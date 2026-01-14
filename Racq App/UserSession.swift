@@ -15,6 +15,7 @@ struct UserSession: Identifiable {
     let forehandCount: Int
     let backhandCount: Int
     let durationSec: Int
+    let fastestSwing: Double
     let heartRate: Double
     let csvFileName: String?
 }

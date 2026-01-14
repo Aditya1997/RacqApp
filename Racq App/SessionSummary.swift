@@ -9,11 +9,12 @@ import Foundation
 
 struct SessionSummary: Equatable {
     let shotCount: Int
-    let durationSec: Int
-    let heartRate: Double
-    let timestampISO: String
     let forehandCount: Int
     let backhandCount: Int
+    let durationSec: Int
+    let fastestSwing: Double
+    let heartRate: Double
+    let timestampISO: String
 
     func value(for stat: ChallengeTrackedStat) -> Int {
         switch stat {
