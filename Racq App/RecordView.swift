@@ -17,29 +17,45 @@ import UIKit
 
 func loadSwingSummaryCSV(from url: URL) -> [SwingSummaryCSV] {
     guard let raw = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-    let rows = raw.components(separatedBy: .newlines)
+
+    let rows = raw
+        .replacingOccurrences(of: "\r", with: "")
+        .components(separatedBy: "\n")
+        .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
     guard rows.count > 1 else { return [] }
 
     var results: [SwingSummaryCSV] = []
 
     for row in rows.dropFirst() {
+        // split, but tolerate extra columns
         let cols = row.components(separatedBy: ",")
-        guard cols.count == 5 else { continue }
+        if cols.count < 5 { continue }
 
-        if let peak = Double(cols[2]), let peakGyro = Double(cols[3]),
-           let duration = Double(cols[4]) {
+        let timestamp = cols[0].trimmingCharacters(in: .whitespacesAndNewlines)
+        let typeRaw = cols[1].trimmingCharacters(in: .whitespacesAndNewlines)
 
-            results.append(
-                SwingSummaryCSV(
-                    timestamp: cols[0],
-                    type: cols[1],
-                    peak: peak,
-                    peakGyro: peakGyro,
-                    duration: duration
-                )
+        let peak = Double(cols[2].trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        let peakGyro = Double(cols[3].trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+        let duration = Double(cols[4].trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+
+        // skip clearly bad rows
+        if timestamp.isEmpty { continue }
+
+        results.append(
+            SwingSummaryCSV(
+                timestamp: timestamp,
+                type: typeRaw,
+                peak: peak,
+                peakGyro: peakGyro,
+                duration: duration
             )
-        }
+        )
     }
+
+    print("📄 Parsed swings:", results.count, "from", url.lastPathComponent)
+    if let first = results.first { print("🔎 first swing row type=", first.type) }
+    if let last = results.last { print("🔎 last swing row type=", last.type) }
 
     return results
 }

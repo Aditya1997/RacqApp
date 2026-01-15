@@ -111,7 +111,7 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
                 forehandCount: summaryforehandCount,
                 backhandCount: summarybackhandCount,
                 durationSec: summaryDurationSec,
-                fastestSwing: 0,
+                fastestSwing: summaryFastestSwing,
                 heartRate: summaryHeartRate,
                 timestampISO: summaryTimestampISO
             )
@@ -145,50 +145,76 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
         let fm = FileManager.default
         let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let dest = docs.appendingPathComponent(file.fileURL.lastPathComponent)
 
-        let swings = loadSwingSummaryCSV(from: dest)
-        let height = UserDefaults.standard.double(forKey: "userHeightInInches")
+        // Determine what kind of file the watch sent using the ORIGINAL name
+        let incomingName = file.fileURL.lastPathComponent
+        let isSummary = incomingName.localizedCaseInsensitiveContains("SwingSummaries")
+            || incomingName.localizedCaseInsensitiveContains("swing_summaries")
+            || incomingName.localizedCaseInsensitiveContains("summary")
 
-        let fhMax = SwingMath.maxFHSpeed(swings: swings, height: height)
-        let bhMax = SwingMath.maxBHSpeed(swings: swings, height: height)
-        let fastest = max(fhMax, bhMax)
+        // Save locally with a unique name, but keep the "summary" hint so your debugging is easy
+        let uniqueName: String = {
+            let tag = isSummary ? "SwingSummaries" : "SessionCSV"
+            return "\(tag)_\(UUID().uuidString).csv"
+        }()
 
-        summaryFastestSwing = fastest
+        let dest = docs.appendingPathComponent(uniqueName)
 
-        // ✅ Patch Firestore for this session + profile fastest
-        Task {
-            let participantId = UserIdentity.participantId()
-            let sessionId = self.lastAppliedSessionTimestampISO.isEmpty ? self.lastAppliedSessionTimestampISO : self.lastAppliedSessionTimestampISO
-            if !sessionId.isEmpty {
-                await UserSessionStore().updateFastestSwingForSession(
-                    participantId: participantId,
-                    sessionId: sessionId,
-                    fastestSwing: fastest
-                )
-            } else {
-                print("⚠️ No sessionId available to patch fastest swing")
-            }
-        }
-        
         do {
+            // 1) Remove any existing file at dest
             if fm.fileExists(atPath: dest.path) {
                 try fm.removeItem(at: dest)
             }
-            try fm.copyItem(at: file.fileURL, to: dest)
 
+            // 2) Copy FIRST so the file exists on disk
+            try fm.copyItem(at: file.fileURL, to: dest)
+            print("📄 CSV copied to:", dest.lastPathComponent, "from:", incomingName, "isSummary:", isSummary)
+
+            // 3) Publish the correct URL (this triggers your HomeView/RecordView onChange)
             DispatchQueue.main.async {
-                if dest.lastPathComponent.contains("SwingSummaries") {
-                    self.summaryCSVURL = dest     // <-- summary file
-                    print("📄 SUMMARY CSV received: \(dest.lastPathComponent)")
+                if isSummary {
+                    self.summaryCSVURL = dest
+                    print("✅ summaryCSVURL set:", dest.lastPathComponent)
                 } else {
-                    self.csvURL = dest            // <-- session file
-                    print("📄 SESSION CSV received: \(dest.lastPathComponent)")
+                    self.csvURL = dest
+                    print("✅ csvURL set:", dest.lastPathComponent)
+                }
+            }
+
+            // 4) Now parse + compute speeds from the REAL file
+            // Use the summary file for swing speeds (that’s what HomeView/RecordView uses)
+            if isSummary {
+                let swings = loadSwingSummaryCSV(from: dest)
+                let height = UserDefaults.standard.double(forKey: "userHeightInInches")
+
+                let fhMax = SwingMath.maxFHSpeed(swings: swings, height: height)
+                let bhMax = SwingMath.maxBHSpeed(swings: swings, height: height)
+                let fastest = max(fhMax, bhMax)
+
+                DispatchQueue.main.async {
+                    self.summaryFastestSwing = fastest
+                }
+
+                print("🎾 Speeds computed. swings=\(swings.count) fhMax=\(fhMax) bhMax=\(bhMax) fastest=\(fastest)")
+
+                // Patch Firestore fastest swing (only if we have a session id)
+                Task {
+                    let participantId = UserIdentity.participantId()
+                    let sessionId = self.lastAppliedSessionTimestampISO
+                    if !sessionId.isEmpty {
+                        await UserSessionStore().updateFastestSwingForSession(
+                            participantId: participantId,
+                            sessionId: sessionId,
+                            fastestSwing: fastest
+                        )
+                    } else {
+                        print("⚠️ No sessionId available to patch fastest swing")
+                    }
                 }
             }
 
         } catch {
-            print("❌ Failed moving CSV: \(error.localizedDescription)")
+            print("❌ Failed moving CSV:", error.localizedDescription)
         }
     }
 }
