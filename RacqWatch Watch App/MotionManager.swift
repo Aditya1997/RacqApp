@@ -147,15 +147,21 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
     }
     
-    // MARK: - Stream to CSV
+    func endWorkoutSession() {
+        workoutSession?.end()
+        workoutSession = nil
+        print("🛑 Workout session ended.")
+    }
+    
+    // MARK: - Stream Motion Data to CSV
+    
+    // Buffered writes
     private var csvStreamURL: URL?
     private var csvHandle: FileHandle?
     private var csvHeaderWritten = false
-
-    // Buffered writes
     private var csvWriteBuffer = Data()
     private let csvFlushThresholdBytes = 16 * 1024 // ~16KB
-
+    
     private func startCSVStream() {
         logQueue.sync {
             let fileName = "Session_\(Int(Date().timeIntervalSince1970)).csv"
@@ -221,6 +227,60 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
     }
     
+    // MARK: - Swing summary streaming (NEW)
+
+    // Buffered writes
+    private var swingSummaryStreamURL: URL?
+    private var swingSummaryHandle: FileHandle?
+    private var swingSummaryHeaderWritten = false
+    private var swingSummaryWriteBuffer = Data()
+    private let swingSummaryFlushThresholdBytes = 8 * 1024
+    
+    
+    private func startSwingSummaryStream() {
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("SwingSummaries.csv")
+
+        if FileManager.default.fileExists(atPath: url.path) {
+        try? FileManager.default.removeItem(at: url)
+        }
+
+        FileManager.default.createFile(atPath: url.path, contents: nil)
+        swingSummaryHandle = try? FileHandle(forWritingTo: url)
+        swingSummaryWriteBuffer.removeAll()
+        swingSummaryHeaderWritten = false
+    }
+
+
+    private func stopSwingSummaryStream() {
+        guard let handle = swingSummaryHandle else { return }
+
+        if !swingSummaryWriteBuffer.isEmpty {
+        handle.write(swingSummaryWriteBuffer)
+        swingSummaryWriteBuffer.removeAll()
+        }
+
+        try? handle.close()
+            swingSummaryHandle = nil
+    }
+
+    private func enqueueSwingSummaryRow(_ line: String) {
+        guard let handle = swingSummaryHandle else { return }
+
+        if !swingSummaryHeaderWritten {
+        let header = "timestamp,type,peakMagnitude,peakGyro,duration\n"
+        swingSummaryWriteBuffer.append(header.data(using: .utf8)!)
+        swingSummaryHeaderWritten = true
+        }
+
+        swingSummaryWriteBuffer.append(line.data(using: .utf8)!)
+
+        if swingSummaryWriteBuffer.count >= swingSummaryFlushThresholdBytes {
+        handle.write(swingSummaryWriteBuffer)
+        swingSummaryWriteBuffer.removeAll()
+        }
+    }
+    
     // MARK: - Start
     func startMotionUpdates() {
         
@@ -234,6 +294,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
             sessionStart = Date()
         }
         startCSVStream()
+        startSwingSummaryStream()
         startHeartRateUpdates()
       
         // 🔧 Sampling rate 80 Hz, (11/11 switched to CoreMotion timer)
@@ -251,8 +312,8 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         print("✅ Started motion updates at 80 Hz.")
         
         dataLog.removeAll()
-        swingSummaries.removeAll()
-        resetSwingSummaryCSV()
+        //swingSummaries.removeAll()
+        //resetSwingSummaryCSV()
 
         shotCount = 0
         forehandCount = 0
@@ -262,13 +323,25 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         isSwinging = false
         lastShotTime = .distantPast
 
+        WatchWCManager.shared.startLiveUpdates {
+            [
+                "shotCount": self.shotCount,
+                "duration": Int(Date().timeIntervalSince(self.sessionStart ?? Date())),
+                "heartRate": self.cachedHeartRate,
+                "forehandCount": self.forehandCount,
+                "backhandCount": self.backhandCount,
+                "timestamp": ISO8601DateFormatter().string(from: Date())
+            ]
+        }
     }
 
     // MARK: - Stop + export + notify phone (11/11 removed timer)
     func stopMotionUpdates() {
         motionManager.stopDeviceMotionUpdates()
         stopCSVStream()
+        stopSwingSummaryStream()
         stopHeartRateUpdates()
+        WatchWCManager.shared.stopLiveUpdates()
         endWorkoutSession()
         //timer?.invalidate()
         //timer = nil
@@ -312,12 +385,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         }
         
         sessionStart = nil
-
-        func endWorkoutSession() {
-            workoutSession?.end()
-            workoutSession = nil
-            print("🛑 Workout session ended.")
-        }
+        
     }
     
     // MARK: - Capture data (and unfreeze)
@@ -495,7 +563,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                                                            peakGyroFiltered: swingState.peakGyroFiltered,
                                                            duration: duration,
                                                            type: type)
-                                swingSummaries.append(summary)
+                                //swingSummaries.append(summary)
                                 appendSwingToCSV(summary)
                                 // print(String(format: "🏁 Swing End | Type: %@ | Peak: %.3f g | Duration: %.2f s", swingState.type, swingState.peakMagnitude, duration)) // NO MORE PRINTS
                             }
@@ -609,30 +677,39 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
         let type: String
     }
     
-    private var swingSummaries: [SwingSummary] = []
+    //private var swingSummaries: [SwingSummary] = []
 
     private func appendSwingToCSV(_ summary: SwingSummary) {
         let formatter = ISO8601DateFormatter()
         let ts = formatter.string(from: summary.timestamp)
 
+
         let csvLine = "\(ts),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakGyroFiltered)),\(String(format: "%.2f", summary.duration))\n"
-        
-        let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("SwingSummaries.csv")
-        
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            let header = "Timestamp,Type,PeakMagnitude(g),peakGyroFiltered(rad/s),Duration(s)\n"
-            try? header.write(to: fileURL, atomically: true, encoding: .utf8)
-        }
-        
-        if let handle = try? FileHandle(forWritingTo: fileURL) {
-            handle.seekToEndOfFile()
-            if let data = csvLine.data(using: .utf8) {
-                handle.write(data)
-            }
-            try? handle.close()
-        }
+        enqueueSwingSummaryRow(csvLine)
     }
+
+//    private func appendSwingToCSV(_ summary: SwingSummary) {
+//        let formatter = ISO8601DateFormatter()
+//        let ts = formatter.string(from: summary.timestamp)
+//
+//        let csvLine = "\(ts),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakGyroFiltered)),\(String(format: "%.2f", summary.duration))\n"
+//        
+//        let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+//            .appendingPathComponent("SwingSummaries.csv")
+//        
+//        if !FileManager.default.fileExists(atPath: fileURL.path) {
+//            let header = "Timestamp,Type,PeakMagnitude(g),peakGyroFiltered(rad/s),Duration(s)\n"
+//            try? header.write(to: fileURL, atomically: true, encoding: .utf8)
+//        }
+//        
+//        if let handle = try? FileHandle(forWritingTo: fileURL) {
+//            handle.seekToEndOfFile()
+//            if let data = csvLine.data(using: .utf8) {
+//                handle.write(data)
+//            }
+//            try? handle.close()
+//        }
+//    }
     
     private func resetSwingSummaryCSV() {
         let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
