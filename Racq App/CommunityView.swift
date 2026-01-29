@@ -63,12 +63,18 @@ struct CommunityView: View {
                     .foregroundColor(.secondary)
             } else {
                 ForEach(groupStore.groups) { g in
-                    groupRow(
-                        imageName: g.icon,
-                        groupName: g.name,
-                        description: g.description ?? "",
-                        groupId: g.id
-                    )
+                    NavigationLink {
+                        GroupDetailView(group: g)
+                    }
+                    label: {
+                        groupRow(
+                            imageName: g.icon,
+                            groupName: g.name,
+                            description: g.description ?? "",
+                            groupId: g.id,
+                            memberCount: g.memberCount
+                        )
+                    }
                 }
             }
         }
@@ -76,7 +82,7 @@ struct CommunityView: View {
     
     // MARK: - Group Row
 
-    private func groupRow(imageName: String, groupName: String, description: String, groupId: String) -> some View {
+    private func groupRow(imageName: String, groupName: String, description: String, groupId: String, memberCount: Int) -> some View {
         let joined = GroupMembership.getGroupIds().contains(groupId)
 
         return HStack(spacing: 14) {
@@ -99,6 +105,10 @@ struct CommunityView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
+
+                Text("\(memberCount) member\(memberCount == 1 ? "" : "s")")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             Spacer()

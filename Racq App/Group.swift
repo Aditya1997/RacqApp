@@ -8,9 +8,14 @@
 import Foundation
 
 struct PlayerGroup: Identifiable {
-    let id: String          // Firestore doc id
+    let id: String
     let name: String
     let description: String?
     let icon: String
     let updatedAt: Date
+    
+    // Added 1/28/26
+    let location: String?
+    let backgroundImageURL: String?
+    let memberCount: Int
 }

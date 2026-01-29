@@ -61,25 +61,26 @@ final class GroupStore: ObservableObject {
     }
 
     // MARK: - Leave Group (OPTIONAL)
-    /// Removes groupId locally and removes membership fields in Firestore.
+    // Removes groupId locally and removes membership fields in Firestore.
     func leaveGroup(groupId: String) async {
         guard FirebaseApp.app() != nil else {
             print("⚠️ Firebase not configured yet")
             return
         }
-
         let participantId = UserIdentity.participantId()
-
         do {
             let groupRef = db.collection("groups").document(groupId)
 
             try await groupRef.updateData([
-                "members.\(participantId)": FieldValue.delete(),
-                "memberNames.\(participantId)": FieldValue.delete(),
+                // Delete nested shape if it exists
+                FieldPath(["members", participantId]): FieldValue.delete(),
+                FieldPath(["memberNames", participantId]): FieldValue.delete(),
+                // Delete literal dotted-field shape (what Firebase uses)
+                FieldPath(["members.\(participantId)"]): FieldValue.delete(),
+                FieldPath(["memberNames.\(participantId)"]): FieldValue.delete(),
                 "updatedAt": Timestamp(date: Date())
             ])
-
-            GroupMembership.removeGroupId(groupId)
+            GroupMembership.removeGroupId(groupId) // :contentReference[oaicite:2]{index=2}
             print("✅ Left group \(groupId)")
         } catch {
             print("❌ Failed to leave group \(groupId): \(error)")
@@ -92,7 +93,6 @@ final class GroupStore: ObservableObject {
     }
     
     // MARK: - Fetch groups from Firebase Firestore
-    
     func fetchGroups() async {
         guard FirebaseApp.app() != nil else {
             print("⚠️ Firebase not configured yet")
@@ -120,12 +120,19 @@ final class GroupStore: ObservableObject {
 
                 let updatedAt = (data["updatedAt"] as? Timestamp)?.dateValue() ?? Date()
 
+                let location = data["location"] as? String
+                let backgroundImageURL = data["backgroundImageURL"] as? String
+                let memberCount = GroupMemberCount.count(from: data)
+                
                 return PlayerGroup(
-                    id: doc.documentID,
-                    name: name,
-                    description: description,
-                    icon: icon,
-                    updatedAt: updatedAt
+                id: doc.documentID,
+                name: name,
+                description: description,
+                icon: icon,
+                updatedAt: updatedAt,
+                location: location,
+                backgroundImageURL: backgroundImageURL,
+                memberCount: memberCount
                 )
             }
             self.groups = fetched.sorted(by: { $0.updatedAt > $1.updatedAt })
