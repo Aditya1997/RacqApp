@@ -1,4 +1,4 @@
-//
+//  UNUSED
 //  GroupPostCardView.swift
 //  Racq App
 //

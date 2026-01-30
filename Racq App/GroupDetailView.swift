@@ -59,7 +59,7 @@ struct GroupDetailView: View {
                 } else {
                     VStack(spacing: 12) {
                         ForEach(postStore.posts) { p in
-                            GroupPostCardView(groupId: group.id, post: p)
+                            TinyPostCard(post: p, context: .group)
                         }
                     }
                     .padding(.horizontal)
@@ -148,14 +148,12 @@ struct GroupDetailView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Recent Activity")
                 .font(.headline)
-
             HStack(spacing: 12) {
                 Button { showCreatePost = true } label: {
-                    Label("Create Post", systemImage: "plus")
+                    Label("Create Text Post", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-
                 Button {
                     // placeholder hook
                 } label: {

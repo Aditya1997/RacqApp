@@ -16,10 +16,11 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var userHeight: Double = UserDefaults.standard.double(forKey: "userHeightInInches")
 
     // Summary data for dashboard
-    @Published var summaryShotCount: Int = 0
+    @Published var summaryTimestampISO: String = ""
     @Published var summaryDurationSec: Int = 0
     @Published var summaryHeartRate: Double = 0
-    @Published var summaryTimestampISO: String = ""
+    @Published var summaryAvgHeartRate: Double = 0
+    @Published var summaryShotCount: Int = 0
     @Published var summaryforehandCount: Int = 0
     @Published var summarybackhandCount: Int = 0
     @Published var summaryFastestSwing: Double = 0
@@ -92,13 +93,14 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     
     // MARK: - Handle Summary Data
     private func applySummary(_ dict: [String: Any]) {
-        if let shots = dict["shotCount"] as? Int { summaryShotCount = shots }
-        if let fast = dict["fastestSwing"] as? Double { summaryFastestSwing = fast}
+        if let ts = dict["timestampISO"] as? String ?? dict["timestamp"] as? String { summaryTimestampISO = ts }
         if let dur = dict["durationSec"] as? Int ?? dict["duration"] as? Int { summaryDurationSec = dur }
         if let hr = dict["heartRate"] as? Double { summaryHeartRate = hr }
-        if let ts = dict["timestampISO"] as? String ?? dict["timestamp"] as? String { summaryTimestampISO = ts }
+        if let avgHR = dict["avgHeartRate"] as? Double { summaryAvgHeartRate = avgHR }
+        if let shots = dict["shotCount"] as? Int { summaryShotCount = shots }
         if let fh = dict["forehandCount"] as? Int { summaryforehandCount = fh }
         if let bh = dict["backhandCount"] as? Int { summarybackhandCount = bh }
+        if let fast = dict["fastestSwing"] as? Double { summaryFastestSwing = fast}
 
         print("📥 Summary received: shots=\(summaryShotCount), dur=\(summaryDurationSec), hr=\(summaryHeartRate)")
         
@@ -107,13 +109,14 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
         if !ts.isEmpty, ts != lastAppliedSessionTimestampISO {
             lastAppliedSessionTimestampISO = ts
             let summary = SessionSummary(
+                timestampISO: summaryTimestampISO,
+                durationSec: summaryDurationSec,
+                heartRate: summaryHeartRate,
+                avgHeartRate: summaryAvgHeartRate,
                 shotCount: summaryShotCount,
                 forehandCount: summaryforehandCount,
                 backhandCount: summarybackhandCount,
-                durationSec: summaryDurationSec,
-                fastestSwing: summaryFastestSwing,
-                heartRate: summaryHeartRate,
-                timestampISO: summaryTimestampISO
+                fastestSwing: summaryFastestSwing
             )
             let pid = UserIdentity.participantId()
             let name = UserIdentity.displayName()

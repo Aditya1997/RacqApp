@@ -10,6 +10,7 @@
 // 11/19/2025 Updates to incorporate cooldown check and tighten limits slightly
 // 12/9/2025 Added lock to swing end, added gyro smoothing
 // 1/8/2026 Push 1 at 1:20 PM made minor fix to data stall, push 2 added CSV stream method to minimize datalog
+// 1/30/2026 copied from MotionManager so Nick can start Eigen version
 
 import Foundation
 import CoreMotion
@@ -19,7 +20,7 @@ import WatchConnectivity
 import HealthKit
 
 //@MainActor
-final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate {
+final class MotionManagerEigen: NSObject, ObservableObject, HKWorkoutSessionDelegate {
     private var workoutSession: HKWorkoutSession?
     private var healthStore = HKHealthStore()
     private let motionQueue: OperationQueue = {
@@ -32,7 +33,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
 
     private let logQueue = DispatchQueue(label: "com.racqwatch.motionlog")
 
-    static let shared = MotionManager()
+    static let shared = MotionManagerEigen()
     
     private let motionManager = CMMotionManager()
     private var dataLog: [MotionData] = []
@@ -490,7 +491,7 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
                 
         let now = Date()
         
-        // adding minimum magnitude check	
+        // adding minimum magnitude check
         if rawMagnitude > 0.6   {
             // ✅ Swing start
             if !isSwinging {
@@ -702,15 +703,15 @@ final class MotionManager: NSObject, ObservableObject, HKWorkoutSessionDelegate 
 //        let ts = formatter.string(from: summary.timestamp)
 //
 //        let csvLine = "\(ts),\(summary.type),\(String(format: "%.3f", summary.peakMagnitude)),\(String(format: "%.3f", summary.peakGyroFiltered)),\(String(format: "%.2f", summary.duration))\n"
-//        
+//
 //        let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
 //            .appendingPathComponent("SwingSummaries.csv")
-//        
+//
 //        if !FileManager.default.fileExists(atPath: fileURL.path) {
 //            let header = "Timestamp,Type,PeakMagnitude(g),peakGyroFiltered(rad/s),Duration(s)\n"
 //            try? header.write(to: fileURL, atomically: true, encoding: .utf8)
 //        }
-//        
+//
 //        if let handle = try? FileHandle(forWritingTo: fileURL) {
 //            handle.seekToEndOfFile()
 //            if let data = csvLine.data(using: .utf8) {

@@ -68,7 +68,8 @@ struct HomeView: View { // Renamed from ContentView
     @AppStorage("displayName") private var displayName: String = ""
     @State private var showNameSetup = false
     @StateObject private var profileStore = UserProfileStore()
-    
+    @StateObject private var homeFeedStore = HomeGroupFeedStore()
+
     private var participantId: String {
         UserIdentity.participantId()
     }
@@ -85,11 +86,10 @@ struct HomeView: View { // Renamed from ContentView
                             .foregroundColor(.secondary)
                             .font(.subheadline)
                     }
-                    Divider()
-                    // PLAYER HEIGHT SECTION (always visible)
-                    PlayerHeightView()
-                    
-                    Divider()
+//                    Divider()
+//                    // PLAYER HEIGHT SECTION (always visible)
+//                    PlayerHeightView()
+//                    Divider()
                     // SUMMARY (shown automatically when data arrives)
                     if wc.summaryTimestampISO.isEmpty {
                         VStack(spacing: 8) {
@@ -102,91 +102,37 @@ struct HomeView: View { // Renamed from ContentView
                         .frame(maxWidth: .infinity)
                     } else {
                         // MOST RECENT SESSION STATS
-                        VStack(spacing: 12) {
-                            Text("Latest Session")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            Image("tennis_court")
-                                .resizable()
-                                .scaledToFill()
-                                .frame(height: 180)
-                                .clipped()
-                                .cornerRadius(16)
-                                .overlay(
-                                    LinearGradient(
-                                        colors: [.black.opacity(0.4), .clear],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                .padding(.horizontal)
-                            LazyVGrid(
-                                columns: [
-                                    GridItem(.flexible(), spacing: 16),
-                                    GridItem(.flexible(), spacing: 16)
-                                ],
-                                spacing: 16
-                            ) {
-                                SummaryBlock(
-                                    title: "Duration",
-                                    value: format(wc.summaryDurationSec),
-                                    icon: AnyView(Image(systemName: "clock.fill").foregroundColor(.white))
-                                    //gradient: orangeGradient
-                                )
-                                SummaryBlock(
-                                    title: "Shots",
-                                    value: "\(wc.summaryShotCount)",
-                                    icon: AnyView(Image(systemName: "tennisball.fill").foregroundColor(.white))
-                                    //gradient: greenGradient
-                                )
-                                SummaryBlock(
-                                    title: "Forehands",
-                                    value: "\(wc.summaryforehandCount)",
-                                    icon: AnyView(letterIcon("F"))
-                                    //gradient: blueGradient
-                                )
-                                SummaryBlock(
-                                    title: "Backhands",
-                                    value: "\(wc.summarybackhandCount)",
-                                    icon: AnyView(letterIcon("B"))
-                                    //gradient: yellowGradient
-                                )
-                            }
-                            CombinedSpeedCard(
-                                fhTitle: "Forehand Speed",
-                                fhMaxValue: String(
-                                    format: "%.0f mph",
-                                    SwingMath.maxFHSpeed(swings: swings, height: userHeight)
-                                ),
-                                fhAvgValue: String(
-                                    format: "%.0f",
-                                    SwingMath.avgFHSpeed(swings: swings, height: userHeight)
-                                ),
-                                fhRatio: CGFloat(
-                                    SwingMath.avgFHSpeed(swings: swings, height: userHeight) /
-                                    max(SwingMath.maxFHSpeed(swings: swings, height: userHeight), 1)
-                                ),
-                                fhColor: .blue,
-                                fhIcon: AnyView(letterIcon("F")),
+                        SessionCardView(
+                            title: "Latest Session",
+                            durationSec: wc.summaryDurationSec,
+                            avgHR: wc.summaryAvgHeartRate,
+                            shotCount: wc.summaryShotCount,
+                            forehandCount: wc.summaryforehandCount,
+                            backhandCount: wc.summarybackhandCount,
+                            swings: swings,
+                            userHeightInInches: userHeight
+                        )
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Community Feed")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                                bhTitle: "Backhand Speed",
-                                bhMaxValue: String(
-                                    format: "%.0f mph",
-                                    SwingMath.maxBHSpeed(swings: swings, height: userHeight)
-                                ),
-                                bhAvgValue: String(
-                                    format: "%.0f",
-                                    SwingMath.avgBHSpeed(swings: swings, height: userHeight)
-                                ),
-                                bhRatio: CGFloat(
-                                    SwingMath.avgBHSpeed(swings: swings, height: userHeight) /
-                                    max(SwingMath.maxBHSpeed(swings: swings, height: userHeight), 1)
-                                ),
-                                bhColor: .red,
-                                bhIcon: AnyView(letterIcon("B"))
-                            )
-                            .frame(maxWidth: .infinity)
-                            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 4)
+                        if homeFeedStore.feed.isEmpty {
+                            Text("No recent posts from your groups yet.")
+                                .foregroundColor(.secondary)
+                                .font(.subheadline)
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(homeFeedStore.feed) { item in
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Text(item.groupName)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundColor(.secondary)
+                                        TinyPostCard(post: item.post, context: .group)
+                                    }
+                                }
+                            }
                         }
                     }
                     Spacer()
@@ -208,6 +154,13 @@ struct HomeView: View { // Renamed from ContentView
                     showNameSetup = true
                 }
             }
+            .task {
+                await homeFeedStore.start()
+            }
+            .onDisappear {
+                homeFeedStore.stop()
+            }
+
             .sheet(isPresented: $showNameSetup) {
                 NameSetupView()
             }
@@ -227,42 +180,3 @@ private func format(_ sec: Int) -> String {
 }
 
 
-// MARK: - SummaryBlock (single value)
-
-//struct SummaryBlock: View {
-//    var title: String
-//    var value: String
-//    var icon: AnyView? = nil
-//    
-//    var body: some View {
-//        VStack(alignment: .leading, spacing: 6) {
-//            HStack {
-//                if let icon = icon {
-//                    icon
-//                        .frame(width: 30, height: 30)
-//                }
-//                Spacer()
-//                Text(value)
-//                    .foregroundColor(.white)
-//                    .font(.system(size: 24, weight: .bold))
-//                    .minimumScaleFactor(0.7)
-//                    .lineLimit(1)
-//            }
-//            Text(title)
-//                .foregroundColor(.white.opacity(0.85))
-//                .font(.system(size: 14, weight: .medium))
-//                .lineLimit(1)
-//                .minimumScaleFactor(0.7)
-//        }
-//        .padding(.vertical,6)
-//        .padding(.horizontal,12)
-//        .frame(height: 85)
-//        .background(
-//            RoundedRectangle(cornerRadius: 15).fill(.ultraThinMaterial)
-//        )
-//        .overlay(
-//            RoundedRectangle(cornerRadius: 15).stroke(Color.white.opacity(0.08), lineWidth: 1)
-//        )
-//        .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 3)
-//    }
-//}

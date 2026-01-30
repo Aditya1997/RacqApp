@@ -20,6 +20,10 @@ struct ProfileView: View {
     @AppStorage("shoes") private var shoes = "Nike Vapor Pro"
     @AppStorage("bag") private var bag = "Babolat Classic"
 
+    // MARK: - User Posts
+    @StateObject private var postStore = UserPostStore()
+    @State private var showPostSession: UserSession?
+    
     // MARK: - Photo Picker
     @State private var selectedPhoto: PhotosPickerItem?
     @AppStorage("profileImageData") private var profileImageData: Data?
@@ -60,7 +64,6 @@ struct ProfileView: View {
                     .onChange(of: selectedPhoto) { newItem in
                         loadImage(from: newItem)
                     }
-
                     Text(displayName)
                         .font(.title2.bold())
                         .foregroundColor(.white)
@@ -69,15 +72,11 @@ struct ProfileView: View {
 
                 // MARK: - Player Stats Card
                 VStack(alignment: .leading, spacing: 18) {
-
                     Text("Player Stats")
                         .font(.headline)
                         .foregroundColor(.white)
-
                     let p = profileStore.profile
-
                     VStack(spacing: 24) {
-
                         // -------- ROW 1 --------
                         HStack(spacing: 20) {
                             statBox(
@@ -85,14 +84,12 @@ struct ProfileView: View {
                                 value: p == nil ? "--" : formattedDate(p!.dateJoined),
                                 icon: "calendar"
                             )
-
                             statBox(
                                 title: "Sessions Completed",
                                 value: "\(p?.sessionsCompleted ?? 0)",
                                 icon: "figure.run"
                             )
                         }
-
                         // -------- ROW 2 --------
                         HStack(spacing: 20) {
                             statBox(
@@ -100,7 +97,6 @@ struct ProfileView: View {
                                 value: "\(p?.totalHits ?? 0)",
                                 icon: "bolt.circle"
                             )
-                            
                             statBox(
                                 title: "Fastest Swing",
                                 value: {
@@ -109,8 +105,6 @@ struct ProfileView: View {
                                 }(),
                                 icon: "speedometer"
                             )
-                            
-                            // For now, show total duration as a placeholder (until we wire fastestSwing later)
                             statBox(
                                 title: "Total Duration",
                                 value: formatDuration(p?.totalDurationSec ?? 0),
@@ -176,7 +170,25 @@ struct ProfileView: View {
                     } else {
                         VStack(spacing: 10) {
                             ForEach(sessionStore.sessions.prefix(10)) { s in
-                                sessionRow(s)
+                                sessionRow(s) {
+                                    showPostSession = s
+                                }
+                            }
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Posts")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    if postStore.posts.isEmpty {
+                        Text("No posts yet.")
+                            .foregroundColor(.white.opacity(0.6))
+                            .font(.subheadline)
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(postStore.posts) { p in
+                                TinyPostCard(post: p, context: .profile)
                             }
                         }
                     }
@@ -190,13 +202,18 @@ struct ProfileView: View {
         .sheet(item: $editingField) { field in
             editSheet(for: field)
         }
+        .sheet(item: $showPostSession) { session in
+            CreateSessionPostView(session: session)
+        }
         .onAppear {
             loadStoredImage()
             Task {
                 await profileStore.fetchProfile(participantId: participantId)
                 await sessionStore.fetchSessions(participantId: participantId)
+                await postStore.startListening(participantId: participantId)
             }
         }
+        .onDisappear { postStore.stopListening() }
     }
 
     // MARK: - Load Photo
@@ -260,12 +277,17 @@ struct ProfileView: View {
 
 // MARK: - Session Helpers (outside of ProfileView)
 
-private func sessionRow(_ s: UserSession) -> some View {
+private func sessionRow(_ s: UserSession, onPost: @escaping () -> Void) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-        Text(formattedDate(s.timestamp))
-            .font(.subheadline.weight(.semibold))
-            .foregroundColor(.white)
-
+        HStack {
+            Text(formattedDate(s.timestamp))
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.white)
+            Spacer()
+            Button("Post") { onPost() }
+                .font(.caption)
+                .buttonStyle(.bordered)
+        }
         HStack {
             Text("Shots \(s.shotCount)")
             Spacer()
@@ -275,7 +297,6 @@ private func sessionRow(_ s: UserSession) -> some View {
         }
         .font(.caption)
         .foregroundColor(.white.opacity(0.75))
-
         HStack {
             Text("Dur \(formatDuration(s.durationSec))")
             Spacer()

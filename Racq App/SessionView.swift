@@ -1,7 +1,7 @@
 //
-//  RecordView.swift
+//  SessionView.swift
 //  RacqApp
-//
+//  Do we need a detailed session view
 
 import SwiftUI
 import WatchConnectivity
@@ -162,25 +162,7 @@ struct SessionView: View {
 
 // MARK: - Player Height Slider
 
-struct PlayerHeightView: View {
-    @AppStorage("userHeightInInches") var userHeight: Double = 70
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Player Height")
-                .font(.headline)
-
-            HStack {
-                Slider(value: $userHeight, in: 55...80, step: 1)
-                Text("\(Int(userHeight)) in")
-                    .frame(width: 50)
-            }
-            .onChange(of: userHeight) { newValue in
-                WCSession.default.sendMessage(["height": newValue], replyHandler: nil)
-            }
-        }
-    }
-}
 
 //// MARK: - Summary Card
 //private struct DetailedSummaryCard: View {

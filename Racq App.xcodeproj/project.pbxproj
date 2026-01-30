@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3B24A7392F2D2CFD0045B293 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 3B24A7382F2D2CFD0045B293 /* FirebaseStorage */; };
 		3B622D0F2EB2C5A7004E2EC6 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3B622D0E2EB2C5A7004E2EC6 /* FirebaseCore */; };
 		3B622D112EB2C5A7004E2EC6 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 3B622D102EB2C5A7004E2EC6 /* FirebaseFirestore */; };
 		3B622D132EB2C7E9004E2EC6 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 3B622D122EB2C7E9004E2EC6 /* FirebaseAuth */; };
@@ -87,6 +88,7 @@
 				3B622D0F2EB2C5A7004E2EC6 /* FirebaseCore in Frameworks */,
 				D36077452EA84FE400CF9733 /* WatchConnectivity.framework in Frameworks */,
 				3B622D112EB2C5A7004E2EC6 /* FirebaseFirestore in Frameworks */,
+				3B24A7392F2D2CFD0045B293 /* FirebaseStorage in Frameworks */,
 				3B622D132EB2C7E9004E2EC6 /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -171,6 +173,7 @@
 				3B622D0E2EB2C5A7004E2EC6 /* FirebaseCore */,
 				3B622D102EB2C5A7004E2EC6 /* FirebaseFirestore */,
 				3B622D122EB2C7E9004E2EC6 /* FirebaseAuth */,
+				3B24A7382F2D2CFD0045B293 /* FirebaseStorage */,
 			);
 			productName = "Racq App";
 			productReference = D3DB037C2EA720EA00609238 /* Racq App.app */;
@@ -268,7 +271,7 @@
 				CODE_SIGN_ENTITLEMENTS = "RacqWatch Watch App/RacqWatch Watch App.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 1.7.7;
+				CURRENT_PROJECT_VERSION = 1.7.8;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
@@ -309,7 +312,7 @@
 				CODE_SIGN_ENTITLEMENTS = "RacqWatch Watch App/RacqWatch Watch App.entitlements";
 				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 1.7.7;
+				CURRENT_PROJECT_VERSION = 1.7.8;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=watchos*]" = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
@@ -472,7 +475,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 1.7.7;
+				CURRENT_PROJECT_VERSION = 1.7.8;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
@@ -516,7 +519,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 1.7.7;
+				CURRENT_PROJECT_VERSION = 1.7.8;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = ZT6G3ZUJP3;
 				ENABLE_PREVIEWS = YES;
@@ -595,6 +598,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		3B24A7382F2D2CFD0045B293 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3B622D0D2EB2C5A7004E2EC6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
+		};
 		3B622D0E2EB2C5A7004E2EC6 /* FirebaseCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3B622D0D2EB2C5A7004E2EC6 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
