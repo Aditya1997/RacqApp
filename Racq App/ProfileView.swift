@@ -39,162 +39,175 @@ struct ProfileView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 28) {
-                // MARK: - Profile Icon
-                VStack(spacing: 12) {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                        Group {
-                            if let data = profileImageData,
-                               let img = UIImage(data: data) {
-                                Image(uiImage: img)
-                                    .resizable()
-                                    .scaledToFill()
-                            } else {
-                                Image(systemName: "person.crop.circle.fill")
-                                    .resizable()
-                                    .scaledToFit()
-                                    .foregroundColor(.white.opacity(0.85))
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 28) {
+                    // MARK: - Profile Icon
+                    VStack(spacing: 12) {
+                        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                            Group {
+                                if let data = profileImageData,
+                                   let img = UIImage(data: data) {
+                                    Image(uiImage: img)
+                                        .resizable()
+                                        .scaledToFill()
+                                } else {
+                                    Image(systemName: "person.crop.circle.fill")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .foregroundColor(.white.opacity(0.85))
+                                }
                             }
+                            .frame(width: 130, height: 130)
+                            .clipShape(Circle())
+                            .shadow(color: .white.opacity(0.25), radius: 10)
                         }
-                        .frame(width: 130, height: 130)
-                        .clipShape(Circle())
-                        .shadow(color: .white.opacity(0.25), radius: 10)
+                        .onChange(of: selectedPhoto) { newItem in
+                            loadImage(from: newItem)
+                        }
+                        Text(displayName)
+                            .font(.title2.bold())
+                            .foregroundColor(.white)
                     }
-                    .onChange(of: selectedPhoto) { newItem in
-                        loadImage(from: newItem)
-                    }
-                    Text(displayName)
-                        .font(.title2.bold())
-                        .foregroundColor(.white)
-                }
-                .padding(.top, 16)
-
-                // MARK: - Player Stats Card
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Player Stats")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    let p = profileStore.profile
-                    VStack(spacing: 24) {
-                        // -------- ROW 1 --------
-                        HStack(spacing: 20) {
-                            statBox(
-                                title: "Date Joined",
-                                value: p == nil ? "--" : formattedDate(p!.dateJoined),
-                                icon: "calendar"
-                            )
-                            statBox(
-                                title: "Sessions Completed",
-                                value: "\(p?.sessionsCompleted ?? 0)",
-                                icon: "figure.run"
-                            )
-                        }
-                        // -------- ROW 2 --------
-                        HStack(spacing: 20) {
-                            statBox(
-                                title: "Total Hits",
-                                value: "\(p?.totalHits ?? 0)",
-                                icon: "bolt.circle"
-                            )
-                            statBox(
-                                title: "Fastest Swing",
-                                value: {
-                                    let swing = p?.fastestSwing ?? 0
-                                    return swing > 0 ? "\(Int(swing)) mph" : "N/A"
-                                }(),
-                                icon: "speedometer"
-                            )
-                            statBox(
-                                title: "Total Duration",
-                                value: formatDuration(p?.totalDurationSec ?? 0),
-                                icon: "clock"
-                            )
-                        }
-                    }
-                    .padding()
-                    .background(BlurBackground(style: .systemUltraThinMaterialDark))
-                    .cornerRadius(18)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                    )
-                }
-                
-                // MARK: - Equipment Card
-                VStack(alignment: .leading, spacing: 18) {
-
-                    Text("Equipment")
-                        .font(.headline)
-                        .foregroundColor(.white)
-
-                    VStack(spacing: 24) {
-
-                        HStack(spacing: 20) {
-                            editableEquipmentBox(label: "Racket", value: racket) {
-                                beginEditing(.racket, current: racket)
-                            }
-                            editableEquipmentBox(label: "Shoes", value: shoes) {
-                                beginEditing(.shoes, current: shoes)
-                            }
-                        }
-
-                        HStack(spacing: 20) {
-                            editableEquipmentBox(label: "Bag", value: bag) {
-                                beginEditing(.bag, current: bag)
-                            }
-                            Spacer()
-                        }
-
-                    }
-                    .padding()
-                    .background(BlurBackground(style: .systemUltraThinMaterialDark))
-                    .cornerRadius(18)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                    )
-                }
-                
-                // MARK: - Past Sessions
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Past Sessions")
-                        .font(.headline)
-                        .foregroundColor(.white)
+                    .padding(.top, 16)
                     
-                    if sessionStore.sessions.isEmpty {
-                        Text("No sessions saved yet.")
-                            .foregroundColor(.white.opacity(0.6))
-                            .font(.subheadline)
-                    } else {
-                        VStack(spacing: 10) {
-                            ForEach(sessionStore.sessions.prefix(10)) { s in
-                                sessionRow(s) {
-                                    showPostSession = s
+                    // MARK: - Player Stats Card
+                    VStack(alignment: .leading, spacing: 18) {
+                        Text("Player Stats")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        let p = profileStore.profile
+                        VStack(spacing: 24) {
+                            // -------- ROW 1 --------
+                            HStack(spacing: 20) {
+                                statBox(
+                                    title: "Date Joined",
+                                    value: p == nil ? "--" : formattedDate(p!.dateJoined),
+                                    icon: "calendar"
+                                )
+                                statBox(
+                                    title: "Sessions Completed",
+                                    value: "\(p?.sessionsCompleted ?? 0)",
+                                    icon: "figure.run"
+                                )
+                            }
+                            // -------- ROW 2 --------
+                            HStack(spacing: 20) {
+                                statBox(
+                                    title: "Total Hits",
+                                    value: "\(p?.totalHits ?? 0)",
+                                    icon: "bolt.circle"
+                                )
+                                statBox(
+                                    title: "Fastest Swing",
+                                    value: {
+                                        let swing = p?.fastestSwing ?? 0
+                                        return swing > 0 ? "\(Int(swing)) mph" : "N/A"
+                                    }(),
+                                    icon: "speedometer"
+                                )
+                                statBox(
+                                    title: "Total Duration",
+                                    value: formatDuration(p?.totalDurationSec ?? 0),
+                                    icon: "clock"
+                                )
+                            }
+                        }
+                        .padding()
+                        .background(BlurBackground(style: .systemUltraThinMaterialDark))
+                        .cornerRadius(18)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18)
+                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        )
+                    }
+                    
+                    // MARK: - Equipment Card
+                    VStack(alignment: .leading, spacing: 18) {
+                        
+                        Text("Equipment")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        VStack(spacing: 24) {
+                            
+                            HStack(spacing: 20) {
+                                editableEquipmentBox(label: "Racket", value: racket) {
+                                    beginEditing(.racket, current: racket)
+                                }
+                                editableEquipmentBox(label: "Shoes", value: shoes) {
+                                    beginEditing(.shoes, current: shoes)
+                                }
+                            }
+                            HStack(spacing: 20) {
+                                editableEquipmentBox(label: "Bag", value: bag) {
+                                    beginEditing(.bag, current: bag)
+                                }
+                                Spacer()
+                            }
+                        }
+                        .padding()
+                        .background(BlurBackground(style: .systemUltraThinMaterialDark))
+                        .cornerRadius(18)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18)
+                                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                        )
+                    }
+                    // MARK: - Posts
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Posts")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        if postStore.posts.isEmpty {
+                            Text("No posts yet.")
+                                .foregroundColor(.white.opacity(0.6))
+                                .font(.subheadline)
+                        } else {
+                            let columns = [
+                                GridItem(.flexible(), spacing: 8),
+                                GridItem(.flexible(), spacing: 8),
+                                GridItem(.flexible(), spacing: 8)
+                            ]
+                            LazyVGrid(columns: columns, spacing: 8) {
+                                ForEach(postStore.posts) { p in
+                                    NavigationLink {
+                                        PostDetailView(
+                                            post: p,
+                                            ref: .profile(ownerId: participantId, postId: p.id)
+                                        )
+                                    } label: {
+                                        TinyPostCard(post: p, context: .profile, variant: .profileGrid)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         }
                     }
-                }
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Posts")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    if postStore.posts.isEmpty {
-                        Text("No posts yet.")
-                            .foregroundColor(.white.opacity(0.6))
-                            .font(.subheadline)
-                    } else {
-                        VStack(spacing: 10) {
-                            ForEach(postStore.posts) { p in
-                                TinyPostCard(post: p, context: .profile)
+                    // MARK: - Past Sessions
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Past Sessions")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        if sessionStore.sessions.isEmpty {
+                            Text("No sessions saved yet.")
+                                .foregroundColor(.white.opacity(0.6))
+                                .font(.subheadline)
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(sessionStore.sessions.prefix(10)) { s in
+                                    sessionRow(s) {
+                                        showPostSession = s
+                                    }
+                                }
                             }
                         }
                     }
+                    
                 }
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
         }
         .background(Color.black.ignoresSafeArea())
         .preferredColorScheme(.dark)

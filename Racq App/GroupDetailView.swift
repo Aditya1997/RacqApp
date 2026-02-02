@@ -18,79 +18,101 @@ struct GroupDetailView: View {
     @State private var showMembers = false
     @State private var liveMemberCount: Int = 0
     @State private var isJoined: Bool = false
+    
+    // Posts
     @State private var groupListener: ListenerRegistration?
-
     @StateObject private var postStore = GroupPostStore()
+    
+    private struct SelectedPostNav: Identifiable, Hashable {
+        let id: String
+        let post: AppPost
+        let ref: PostContextRef
 
+        init(post: AppPost, ref: PostContextRef) {
+            self.post = post
+            self.ref = ref
+            // Stable id for navigation; do NOT rely on post fields changing
+            self.id = ref.postPath
+        }
+
+        static func == (lhs: SelectedPostNav, rhs: SelectedPostNav) -> Bool { lhs.id == rhs.id }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    }
+
+    @State private var selectedNav: SelectedPostNav?
+    
     private var db: Firestore { FirebaseManager.shared.db }
     private var participantId: String { UserIdentity.participantId() }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                header
-
-                VStack(alignment: .leading, spacing: 10) {
-                    if let desc = group.description, !desc.isEmpty {
-                        Text(desc)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-
-                    Button {
-                        showMembers = true
-                    } label: {
-                        Text("See All Members (\(liveMemberCount))")
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .padding(.horizontal)
-
-                Divider().padding(.horizontal)
-
-                recentActivityHeader
-
-                if postStore.posts.isEmpty {
-                    Text("No recent activity yet.")
-                        .foregroundColor(.secondary)
-                        .padding(.top, 8)
-                } else {
-                    VStack(spacing: 12) {
-                        ForEach(postStore.posts) { p in
-                            TinyPostCard(post: p, context: .group)
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 14) {
+                    header
+                    VStack(alignment: .leading, spacing: 10) {
+                        if let desc = group.description, !desc.isEmpty {
+                            Text(desc)
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
                         }
+                        Button {
+                            showMembers = true
+                        } label: {
+                            Text("See All Members (\(liveMemberCount))")
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
                     }
                     .padding(.horizontal)
-                    .padding(.bottom, 20)
+                    Divider().padding(.horizontal)
+                    recentActivityHeader
+                    if postStore.posts.isEmpty {
+                        Text("No recent activity yet.")
+                            .foregroundColor(.secondary)
+                            .padding(.top, 8)
+                    } else {
+                        VStack(spacing: 12) {
+                            ForEach(postStore.posts) { p in
+                                let ref: PostContextRef = .group(groupId: group.id, postId: p.id)
+                                FeedPostRow(post: p, ref: ref) {
+                                    selectedNav = SelectedPostNav(post: p, ref: ref)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, 20)
+                    }
                 }
             }
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button(isJoined ? "Leave" : "Join") {
-                    Task { await toggleMembership() }
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(item: $selectedNav) { nav in
+                PostDetailView(post: nav.post, ref: nav.ref)
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(isJoined ? "Leave" : "Join") {
+                        Task { await toggleMembership() }
+                    }
                 }
             }
-        }
-        .sheet(isPresented: $showCreatePost) {
-            CreateGroupPostView(groupId: group.id)
-        }
-        .sheet(isPresented: $showMembers) {
-            GroupMembersView(groupId: group.id)
-        }
-        .onAppear {
-            isJoined = GroupMembership.getGroupIds().contains(group.id)  // :contentReference[oaicite:6]{index=6}
-            startGroupListener()
-        }
-        .task {
-            await postStore.startListening(groupId: group.id)
-        }
-        .onDisappear {
-            postStore.stopListening()
-            stopGroupListener()
+            .sheet(isPresented: $showCreatePost) {
+                CreateGroupPostView(groupId: group.id)
+            }
+            .sheet(isPresented: $showMembers) {
+                GroupMembersView(groupId: group.id)
+            }
+            .onAppear {
+                isJoined = GroupMembership.getGroupIds().contains(group.id)  // :contentReference[oaicite:6]{index=6}
+                startGroupListener()
+            }
+            .task {
+                await postStore.startListening(groupId: group.id)
+            }
+            .onDisappear {
+                postStore.stopListening()
+                stopGroupListener()
+            }
         }
     }
 

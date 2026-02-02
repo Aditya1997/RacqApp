@@ -9,4 +9,4 @@
 // 1.7.6: 1/28/26 - Updated recordView to be a live viewer, modified swingSummary csv to use a stream+buffer method to prevent growth.
 // 1.7.7: 1/28/26 - Updated GroupDetailView and member count/Firestore management
 // 1.7.8: 1/29/26 - Updated profile and groups to support posts - new files: TinyPostCard, GroupPostCardView, UserPostStore, PostParsing, PostService, CreateSessionPostView, CreateGroupPostView, StorageService, PostType, HomeGroupFeedStore, DetailedAnalyticsCard, GroupMultiSelectPickerView
-// 1.7.9:
+// 1.7.9: 2/2/26 - Added emoji support and better nvaigation - new files: PostContextRef, post DetailView, PostInteractionModels, PostInteractionsService, PostInteractionsStore, PostInteractionsView, ReactionsBarView, FeedPostRow

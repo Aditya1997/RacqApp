@@ -67,15 +67,34 @@ struct HomeView: View { // Renamed from ContentView
     @AppStorage("userHeightInInches") private var userHeight: Double = 70
     @AppStorage("displayName") private var displayName: String = ""
     @State private var showNameSetup = false
+    
+    
     @StateObject private var profileStore = UserProfileStore()
     @StateObject private var homeFeedStore = HomeGroupFeedStore()
+    private struct SelectedPostNav: Identifiable, Hashable {
+        let id: String
+        let post: AppPost
+        let ref: PostContextRef
+
+        init(post: AppPost, ref: PostContextRef) {
+            self.post = post
+            self.ref = ref
+            // Stable id for navigation; do NOT rely on post fields changing
+            self.id = ref.postPath
+        }
+
+        static func == (lhs: SelectedPostNav, rhs: SelectedPostNav) -> Bool { lhs.id == rhs.id }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    }
+
+    @State private var selectedNav: SelectedPostNav?
 
     private var participantId: String {
         UserIdentity.participantId()
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 20) {
                     // connection pill
@@ -117,7 +136,6 @@ struct HomeView: View { // Renamed from ContentView
                         Text("Community Feed")
                             .font(.headline)
                             .frame(maxWidth: .infinity, alignment: .leading)
-
                         if homeFeedStore.feed.isEmpty {
                             Text("No recent posts from your groups yet.")
                                 .foregroundColor(.secondary)
@@ -125,11 +143,8 @@ struct HomeView: View { // Renamed from ContentView
                         } else {
                             VStack(spacing: 10) {
                                 ForEach(homeFeedStore.feed) { item in
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Text(item.groupName)
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundColor(.secondary)
-                                        TinyPostCard(post: item.post, context: .group)
+                                    FeedPostRow(post: item.post, ref: item.ref) {
+                                        selectedNav = SelectedPostNav(post: item.post, ref: item.ref)
                                     }
                                 }
                             }
@@ -141,7 +156,10 @@ struct HomeView: View { // Renamed from ContentView
             }
             .padding()
             .navigationTitle("Racq Tracker")
-            .navigationBarTitleDisplayMode(.inline)  // FIXES OVERLAP
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(item: $selectedNav) { nav in
+                PostDetailView(post: nav.post, ref: nav.ref)
+            }
             // below contains the code for manual user height and name input (before profile-based height/wingspan and apple ID)
             .onAppear {
                 let userHeight = UserDefaults.standard.double(forKey: "userHeightInInches")
@@ -160,7 +178,6 @@ struct HomeView: View { // Renamed from ContentView
             .onDisappear {
                 homeFeedStore.stop()
             }
-
             .sheet(isPresented: $showNameSetup) {
                 NameSetupView()
             }

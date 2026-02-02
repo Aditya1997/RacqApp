@@ -10,21 +10,23 @@ import Combine
 import Firebase
 import FirebaseFirestore
 
-struct GroupFeedItem: Identifiable {
-    let id: String               // unique per (groupId + postId)
-    let groupId: String
-    let groupName: String
+struct HomeFeedItem: Identifiable {
+    let id: String                // unique: "\(groupId)_\(postId)"
     let post: AppPost
+    let ref: PostContextRef       // ALWAYS .group for Home feed
+    let groupId: String
+    let postId: String
+    let groupName: String
 }
 
 @MainActor
 final class HomeGroupFeedStore: ObservableObject {
-    @Published var feed: [GroupFeedItem] = []
+    @Published var feed: [HomeFeedItem] = []
 
     private var db: Firestore { FirebaseManager.shared.db }
     private var listeners: [String: ListenerRegistration] = [:] // groupId -> listener
     private var groupNameById: [String: String] = [:]
-    private var postsByCompositeId: [String: GroupFeedItem] = [:]
+    private var postsByCompositeId: [String: HomeFeedItem] = [:]
 
     func start() async {
         guard FirebaseApp.app() != nil else { return }
@@ -61,21 +63,42 @@ final class HomeGroupFeedStore: ObservableObject {
                     print("❌ home group feed listen error groupId=\(groupId):", err)
                     return
                 }
+
                 let docs = snap?.documents ?? []
+                var updated: [String: HomeFeedItem] = [:]
+
                 for d in docs {
                     guard let post = PostParsing.parsePost(docId: d.documentID, data: d.data()) else { continue }
-                    let composite = "\(groupId)_\(post.id)"
-                    self.postsByCompositeId[composite] = GroupFeedItem(
+
+                    let postId = post.id
+                    let composite = "\(groupId)_\(postId)"
+
+                    let item = HomeFeedItem(
                         id: composite,
+                        post: post,
+                        ref: .group(groupId: groupId, postId: postId),
                         groupId: groupId,
-                        groupName: groupName,
-                        post: post
+                        postId: postId,
+                        groupName: groupName
                     )
+
+                    updated[composite] = item
                 }
 
-                // Sort newest first across all groups
-                self.feed = self.postsByCompositeId.values
-                    .sorted(by: { $0.post.createdAt > $1.post.createdAt })
+                // Because we are @MainActor, ensure we update state on the main actor.
+                Task { @MainActor in
+                    // Remove old items for this group from the global dictionary
+                    // then insert the latest snapshot for this group.
+                    for (key, value) in self.postsByCompositeId where value.groupId == groupId {
+                        self.postsByCompositeId.removeValue(forKey: key)
+                    }
+                    for (k, v) in updated {
+                        self.postsByCompositeId[k] = v
+                    }
+
+                    self.feed = self.postsByCompositeId.values
+                        .sorted(by: { $0.post.createdAt > $1.post.createdAt })
+                }
             }
 
         listeners[groupId] = listener
