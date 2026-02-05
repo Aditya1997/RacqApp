@@ -19,6 +19,9 @@ struct SessionCardView: View {
     let swings: [SwingSummaryCSV]
     let userHeightInInches: Double
 
+    // ✅ optional fallback when swings are unavailable (typical for feed posts)
+    let fallbackFastestSwing: Double?
+
     // color variables
     private let cardBG = Color(red: 0.20, green: 0.6, blue: 0.7).opacity(0.4)
     private let outerGradient = LinearGradient(
@@ -29,7 +32,29 @@ struct SessionCardView: View {
         startPoint: .top,
         endPoint: .bottom
     )
-    
+
+    init(
+        title: String,
+        durationSec: Int,
+        avgHR: Double,
+        shotCount: Int,
+        forehandCount: Int,
+        backhandCount: Int,
+        swings: [SwingSummaryCSV],
+        userHeightInInches: Double,
+        fallbackFastestSwing: Double? = nil
+    ) {
+        self.title = title
+        self.durationSec = durationSec
+        self.avgHR = avgHR
+        self.shotCount = shotCount
+        self.forehandCount = forehandCount
+        self.backhandCount = backhandCount
+        self.swings = swings
+        self.userHeightInInches = userHeightInInches
+        self.fallbackFastestSwing = fallbackFastestSwing
+    }
+
     var body: some View {
         VStack(spacing: 12) {
             Text(title)
@@ -37,6 +62,7 @@ struct SessionCardView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .multilineTextAlignment(.center)
                 .padding(.top, 2)
+
             Image("tennis_court")
                 .resizable()
                 .scaledToFill()
@@ -51,41 +77,25 @@ struct SessionCardView: View {
                 .clipShape(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
+
             // MARK: - Combined Speed Card
             CombinedSpeedCard(
                 fhTitle: "Forehand Speed (\(forehandCount))",
-                fhMaxValue: String(
-                    format: "%.0f mph",
-                    SwingMath.maxFHSpeed(swings: swings, height: userHeightInInches)
-                ),
-                fhAvgValue: String(
-                    format: "%.0f",
-                    SwingMath.avgFHSpeed(swings: swings, height: userHeightInInches)
-                ),
-                fhRatio: CGFloat(
-                    SwingMath.avgFHSpeed(swings: swings, height: userHeightInInches) /
-                    max(SwingMath.maxFHSpeed(swings: swings, height: userHeightInInches), 1)
-                ),
+                fhMaxValue: fhMaxText,
+                fhAvgValue: fhAvgText,
+                fhRatio: fhRatio,
                 fhColor: .blue,
                 fhIcon: AnyView(letterIcon("F")),
 
                 bhTitle: "Backhand Speed (\(backhandCount))",
-                bhMaxValue: String(
-                    format: "%.0f mph",
-                    SwingMath.maxBHSpeed(swings: swings, height: userHeightInInches)
-                ),
-                bhAvgValue: String(
-                    format: "%.0f",
-                    SwingMath.avgBHSpeed(swings: swings, height: userHeightInInches)
-                ),
-                bhRatio: CGFloat(
-                    SwingMath.avgBHSpeed(swings: swings, height: userHeightInInches) /
-                    max(SwingMath.maxBHSpeed(swings: swings, height: userHeightInInches), 1)
-                ),
+                bhMaxValue: bhMaxText,
+                bhAvgValue: bhAvgText,
+                bhRatio: bhRatio,
                 bhColor: .red,
                 bhIcon: AnyView(letterIcon("B"))
             )
             .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
+
             // MARK: - Summary Blocks
             HStack(spacing: 16) {
                 SummaryBlock(
@@ -135,5 +145,60 @@ struct SessionCardView: View {
             .frame(width: 32, height: 32)
             .background(Color.white.opacity(0.25))
             .clipShape(Circle())
+    }
+
+    // MARK: - Speed presentation
+
+    private var hasSwings: Bool { !swings.isEmpty }
+
+    private var fallbackMph: Double {
+        let v = fallbackFastestSwing ?? 0
+        return v > 0 ? v : 0
+    }
+
+    private var fhMaxText: String {
+        if hasSwings {
+            return String(format: "%.0f mph", SwingMath.maxFHSpeed(swings: swings, height: userHeightInInches))
+        }
+        return fallbackMph > 0 ? String(format: "%.0f mph", fallbackMph) : "--"
+    }
+
+    private var bhMaxText: String {
+        if hasSwings {
+            return String(format: "%.0f mph", SwingMath.maxBHSpeed(swings: swings, height: userHeightInInches))
+        }
+        return fallbackMph > 0 ? String(format: "%.0f mph", fallbackMph) : "--"
+    }
+
+    private var fhAvgText: String {
+        if hasSwings {
+            return String(format: "%.0f", SwingMath.avgFHSpeed(swings: swings, height: userHeightInInches))
+        }
+        return "--"
+    }
+
+    private var bhAvgText: String {
+        if hasSwings {
+            return String(format: "%.0f", SwingMath.avgBHSpeed(swings: swings, height: userHeightInInches))
+        }
+        return "--"
+    }
+
+    private var fhRatio: CGFloat {
+        if hasSwings {
+            let avg = SwingMath.avgFHSpeed(swings: swings, height: userHeightInInches)
+            let maxv = max(SwingMath.maxFHSpeed(swings: swings, height: userHeightInInches), 1)
+            return CGFloat(avg / maxv)
+        }
+        return 0
+    }
+
+    private var bhRatio: CGFloat {
+        if hasSwings {
+            let avg = SwingMath.avgBHSpeed(swings: swings, height: userHeightInInches)
+            let maxv = max(SwingMath.maxBHSpeed(swings: swings, height: userHeightInInches), 1)
+            return CGFloat(avg / maxv)
+        }
+        return 0
     }
 }

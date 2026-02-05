@@ -4,6 +4,7 @@
 //
 //  Created by Deets on 1/28/26.
 //
+
 import SwiftUI
 import Firebase
 import FirebaseFirestore
@@ -18,11 +19,11 @@ struct GroupDetailView: View {
     @State private var showMembers = false
     @State private var liveMemberCount: Int = 0
     @State private var isJoined: Bool = false
-    
+
     // Posts
     @State private var groupListener: ListenerRegistration?
     @StateObject private var postStore = GroupPostStore()
-    
+
     private struct SelectedPostNav: Identifiable, Hashable {
         let id: String
         let post: AppPost
@@ -31,7 +32,6 @@ struct GroupDetailView: View {
         init(post: AppPost, ref: PostContextRef) {
             self.post = post
             self.ref = ref
-            // Stable id for navigation; do NOT rely on post fields changing
             self.id = ref.postPath
         }
 
@@ -40,7 +40,7 @@ struct GroupDetailView: View {
     }
 
     @State private var selectedNav: SelectedPostNav?
-    
+
     private var db: Firestore { FirebaseManager.shared.db }
     private var participantId: String { UserIdentity.participantId() }
 
@@ -49,11 +49,10 @@ struct GroupDetailView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     header
+
                     VStack(alignment: .leading, spacing: 10) {
-                        if let desc = group.description, !desc.isEmpty {
-                            Text(desc)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                        if !group.description.isEmpty {
+                            Text(group.description)
                         }
                         Button {
                             showMembers = true
@@ -65,8 +64,10 @@ struct GroupDetailView: View {
                         .buttonStyle(.bordered)
                     }
                     .padding(.horizontal)
-                    Divider().padding(.horizontal)
+
                     recentActivityHeader
+                    Divider().padding(.horizontal)
+
                     if postStore.posts.isEmpty {
                         Text("No recent activity yet.")
                             .foregroundColor(.secondary)
@@ -103,7 +104,7 @@ struct GroupDetailView: View {
                 GroupMembersView(groupId: group.id)
             }
             .onAppear {
-                isJoined = GroupMembership.getGroupIds().contains(group.id)  // :contentReference[oaicite:6]{index=6}
+                isJoined = GroupMembership.getGroupIds().contains(group.id)
                 startGroupListener()
             }
             .task {
@@ -116,35 +117,74 @@ struct GroupDetailView: View {
         }
     }
 
+    // MARK: - Header with cover + profile overlay
     private var header: some View {
         ZStack(alignment: .bottomLeading) {
             headerBackground
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(group.name)
-                    .font(.title.bold())
-                    .foregroundColor(.white)
-
-                if let loc = group.location, !loc.isEmpty {
-                    Text(loc)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.85))
-                }
-
-                // NOTE: You asked to remove the "0 members" line at the top.
-                // So we do NOT show member count here. Only the "See All Members" button.
-            }
-            .padding()
-        }
-        .frame(height: 220)
-        .clipped()
-        .overlay(
             LinearGradient(
                 colors: [.clear, .black.opacity(0.55)],
                 startPoint: .top,
                 endPoint: .bottom
             )
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .bottom, spacing: 12) {
+                    profileImageCircle
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(group.name)
+                            .font(.title.bold())
+                            .foregroundColor(.white)
+
+                        if let loc = group.location, !loc.isEmpty {
+                            Text(loc)
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.85))
+                        }
+
+                        if !group.tagline.isEmpty {
+                            Text(group.tagline)
+                        }
+                    }
+                }
+            }
+            .padding()
+        }
+        .frame(height: 220)
+        .clipped()
+    }
+
+    private var profileImageCircle: some View {
+        Group {
+            if let urlString = group.profileImageURL,
+               !urlString.isEmpty,
+               let url = URL(string: urlString) {
+                AsyncImage(url: url) { img in
+                    img.resizable().scaledToFill()
+                } placeholder: {
+                    Circle()
+                        .fill(Color.white.opacity(0.15))
+                        .overlay(
+                            Image(systemName: "person.2.fill")
+                                .foregroundColor(.white.opacity(0.8))
+                        )
+                }
+            } else {
+                Circle()
+                    .fill(Color.white.opacity(0.15))
+                    .overlay(
+                        Image(systemName: "person.2.fill")
+                            .foregroundColor(.white.opacity(0.8))
+                    )
+            }
+        }
+        .frame(width: 74, height: 74)
+        .clipShape(Circle())
+        .overlay(
+            Circle().stroke(Color.white.opacity(0.35), lineWidth: 2)
         )
+        .shadow(color: .black.opacity(0.35), radius: 10, x: 0, y: 4)
     }
 
     @ViewBuilder
@@ -168,26 +208,27 @@ struct GroupDetailView: View {
 
     private var recentActivityHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Recent Activity")
-                .font(.headline)
             HStack(spacing: 12) {
                 Button { showCreatePost = true } label: {
                     Label("Create Text Post", systemImage: "plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+
                 Button {
-                    // placeholder hook
+                    // placeholder hook (need to implement)
                 } label: {
                     Label("Invite Friends", systemImage: "person.badge.plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
             }
+            Text("Recent Activity")
+                .font(.headline)
         }
         .padding(.horizontal)
     }
-    
+
     private func startGroupListener() {
         guard FirebaseApp.app() != nil else { return }
 
@@ -210,18 +251,17 @@ struct GroupDetailView: View {
         groupListener?.remove()
         groupListener = nil
     }
-    
+
     private func toggleMembership() async {
         if isJoined {
-            await GroupStore.shared.leaveGroup(groupId: group.id)  // :contentReference[oaicite:7]{index=7}
+            await GroupStore.shared.leaveGroup(groupId: group.id)
             isJoined = false
         } else {
             let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
             let name = trimmed.isEmpty ? "Anonymous" : trimmed
-            await GroupStore.shared.joinGroup(groupId: group.id, displayName: name) // :contentReference[oaicite:8]{index=8}
+            await GroupStore.shared.joinGroup(groupId: group.id, displayName: name)
             isJoined = true
         }
-        // re-pull count from Firestore and refresh list screen store
         await GroupStore.shared.fetchGroups()
     }
 }

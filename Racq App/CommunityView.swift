@@ -5,17 +5,14 @@
 //  12/9/2025 - Updated to fill out dummy view
 //
 
-//
-//  CommunityView.swift
-//  Racq App
-//
-
 import SwiftUI
 
 struct CommunityView: View {
     @StateObject private var store = ChallengeStore()
     @StateObject private var groupStore = GroupStore.shared
-    @State private var showCreate = false
+
+    @State private var showCreateChallenge = false
+    @State private var showCreateGroup = false
 
     @AppStorage("displayName") private var displayName: String = "Anonymous"
     private var participantId: String { UserIdentity.participantId() }
@@ -23,17 +20,16 @@ struct CommunityView: View {
     var body: some View {
         NavigationView {
             List {
-                challengesSection
                 groupsSection
+                challengesSection
             }
             .navigationTitle("Community")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button { showCreate = true } label: { Image(systemName: "plus") }
-                }
-            }
-            .sheet(isPresented: $showCreate) {
+            .sheet(isPresented: $showCreateChallenge) {
                 CreateChallengeView(store: store)
+            }
+            .sheet(isPresented: $showCreateGroup) {
+                // ✅ CreateNewGroupView no longer takes a trailing closure
+                CreateNewGroupView()
             }
             .task {
                 await store.fetchChallenges()
@@ -48,16 +44,8 @@ struct CommunityView: View {
 
     // MARK: - Sections
 
-    private var challengesSection: some View {
-        Section(header: Text("Challenges").font(.headline)) {
-            ForEach(store.challenges) { challenge in
-                challengeRow(challenge)
-            }
-        }
-    }
-
     private var groupsSection: some View {
-        Section(header: Text("Groups").font(.headline)) {
+        Section {
             if groupStore.groups.isEmpty {
                 Text("No eligible groups found.")
                     .foregroundColor(.secondary)
@@ -65,34 +53,76 @@ struct CommunityView: View {
                 ForEach(groupStore.groups) { g in
                     NavigationLink {
                         GroupDetailView(group: g)
-                    }
-                    label: {
+                    } label: {
                         groupRow(
-                            imageName: g.icon,
+                            imageName: g.icon,          // ✅ icon is String (non-optional)
                             groupName: g.name,
-                            description: g.description ?? "",
+                            description: g.description, // ✅ description is String (non-optional)
                             groupId: g.id,
                             memberCount: g.memberCount
                         )
                     }
                 }
             }
+        } header: {
+            sectionHeader(title: "Groups") {
+                showCreateGroup = true
+            }
         }
     }
-    
+
+    private var challengesSection: some View {
+        Section {
+            ForEach(store.challenges) { challenge in
+                challengeRow(challenge)
+            }
+        } header: {
+            sectionHeader(title: "Challenges") {
+                showCreateChallenge = true
+            }
+        }
+    }
+
+    private func sectionHeader(title: String, onCreate: @escaping () -> Void) -> some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+                .textCase(nil)
+
+            Spacer()
+
+            Button(action: onCreate) {
+                Text("Create")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.blue)
+                    .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 4)
+    }
+
     // MARK: - Group Row
 
-    private func groupRow(imageName: String, groupName: String, description: String, groupId: String, memberCount: Int) -> some View {
+    private func groupRow(
+        imageName: String,
+        groupName: String,
+        description: String,
+        groupId: String,
+        memberCount: Int
+    ) -> some View {
         let joined = GroupMembership.getGroupIds().contains(groupId)
 
         return HStack(spacing: 14) {
-
             ZStack {
                 Circle()
                     .fill(Color.blue.opacity(0.15))
                     .frame(width: 48, height: 48)
 
-                Image(systemName: imageName)
+                Image(systemName: imageName.isEmpty ? "person.3.fill" : imageName)
                     .font(.title3)
                     .foregroundColor(.blue)
             }
@@ -101,10 +131,12 @@ struct CommunityView: View {
                 Text(groupName)
                     .font(.headline)
 
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
+                if !description.isEmpty {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
 
                 Text("\(memberCount) member\(memberCount == 1 ? "" : "s")")
                     .font(.caption)
@@ -138,70 +170,68 @@ struct CommunityView: View {
     // MARK: - Challenge Row
 
     private func challengeRow(_ challenge: Challenge) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        NavigationLink {
+            ChallengeDetailView(challenge: challenge, store: store)
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.15))
+                        .frame(width: 40, height: 40)
 
-            // TITLE + OPTIONAL SPONSOR + JOIN/STATUS
-            HStack {
-                Text(challenge.title)
-                    .font(.headline)
-
-                Spacer()
-                
-                if let sponsor = challenge.sponsor, !sponsor.isEmpty {
-                    Text(sponsor)
-                        .font(.caption2)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .foregroundColor(.white)
-                        .background(Color.blue.opacity(0.75))
-                        .cornerRadius(6)
+                    Image(systemName: "trophy.fill") // (swap later if you want per-metric icons)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.blue)
                 }
-                
-                if challenge.isJoined(participantId: participantId) {
-                    Text("Joined")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                } else {
-                    Button("Join") {
-                        Task { await joinChallengeIfPossible(challenge) }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(challenge.title)
+                            .font(.subheadline.weight(.semibold))
+                        Spacer()
+                        if challenge.isJoined(participantId: participantId) {
+                            Text("Joined")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Button("Join") {
+                                Task { await joinChallengeIfPossible(challenge) }
+                            }
+                            .font(.caption2.weight(.semibold))
+                            .buttonStyle(.borderless)
+                        }
                     }
-                    .font(.caption)
-                    .buttonStyle(.bordered)
+                    // Optional sponsor line (compact)
+                    if let sponsor = challenge.sponsor, !sponsor.isEmpty {
+                        Text(sponsor)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    // Compact progress
+                    ProgressView(value: Double(challenge.progress), total: Double(challenge.goal))
+                        .scaleEffect(x: 1.0, y: 0.8, anchor: .center)
+                    HStack {
+                        Text("\(challenge.progress)/\(challenge.goal)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(challengePercent(challenge))%")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
                 }
-
+                .padding(.vertical, 6)
             }
-
-            ProgressView(value: Double(challenge.progress), total: Double(challenge.goal))
-
-            // PROGRESS NUMBERS
-            HStack {
-                Text("\(challenge.progress)/\(challenge.goal)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Spacer()
-
-                Text("\(challengePercent(challenge))%")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-
-            // Optional: show user's personal contribution if joined
-            if challenge.isJoined(participantId: participantId) {
-                Text("You: \(challenge.participantProgress(participantId: participantId))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-
-            // Challenge Leaderboard (top 3 participants)
-            ChallengeLeaderboardView(
-                participants: challenge.participants,
-                participantNames: challenge.participantNames,
-                maxRows: 3
-            )
         }
-        .padding(.vertical, 8)
     }
+
+    private func challengeIconName(_ challenge: Challenge) -> String {
+        // If your Challenge model has a metric/type field, swap logic here.
+        // Default: trophy icon
+        return "trophy.fill"
+    }
+
 
     private func challengePercent(_ challenge: Challenge) -> Int {
         let goal = max(1, challenge.goal)
@@ -222,3 +252,4 @@ struct CommunityView: View {
         )
     }
 }
+

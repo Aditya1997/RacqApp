@@ -26,6 +26,10 @@ struct AppPost: Identifiable {
     let taggedUsernames: [String]
     let imageURLs: [String]
 
+    // comments
+    let commentCount: Int
+    let lastCommentAt: Date?
+    
     // Session payload (optional)
     let sessionId: String?
     let shotCount: Int?

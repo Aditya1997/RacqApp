@@ -3,7 +3,7 @@
 //  Racq App
 //
 //  Created by Deets on 1/12/26.
-//
+//  Saves off the source of truth for all session data (UserSession.swift)
 
 import Foundation
 import Combine
@@ -13,7 +13,7 @@ import FirebaseFirestore
 @MainActor
 final class UserSessionStore: ObservableObject {
     @Published var sessions: [UserSession] = []
-
+    
     private var db: Firestore { FirebaseManager.shared.db }
     
     func saveSessionAndIncrementStats(
@@ -21,30 +21,30 @@ final class UserSessionStore: ObservableObject {
         displayName: String,
         summary: SessionSummary,
         csvURL: URL?,
-        timestampISO: String
+        timestampISO: String,
     ) async {
         guard FirebaseApp.app() != nil else {
             print("⚠️ Firebase not configured yet")
             return
         }
-
+        
         let cleanISO = timestampISO.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanISO.isEmpty else {
             print("⚠️ timestampISO missing; not saving session")
             return
         }
-
+        
         let userRef = db.collection("users").document(participantId)
         let sessionRef = userRef.collection("sessions").document(cleanISO)
-
+        
         do {
             // Ensure user doc exists
             try await userRef.setData([
                 "displayName": displayName,
                 "updatedAt": Timestamp(date: Date())
             ], merge: true)
-
-            // 1) Save session document (includes fastestSwingMph)
+            
+            // 1) Save session document (includes fastestSwing)
             try await sessionRef.setData([
                 "timestampISO": cleanISO,
                 "timestamp": Timestamp(date: Date()),
@@ -52,33 +52,33 @@ final class UserSessionStore: ObservableObject {
                 "forehandCount": summary.forehandCount,
                 "backhandCount": summary.backhandCount,
                 "durationSec": summary.durationSec,
-                "fastestSwing": summary.fastestSwing,
                 "heartRate": summary.heartRate,
+                "fastestSwing": summary.fastestSwing,
                 "csvFileName": csvURL?.lastPathComponent as Any,
                 "updatedAt": Timestamp(date: Date())
             ], merge: true)
-
+            
             // 2) Increment user stats atomically
-            try await userRef.setData([
-                "stats.sessionsCompleted": FieldValue.increment(Int64(1)),
-                "stats.totalHits": FieldValue.increment(Int64(summary.shotCount)),
-                "stats.totalForehands": FieldValue.increment(Int64(summary.forehandCount)),
-                "stats.totalBackhands": FieldValue.increment(Int64(summary.backhandCount)),
-                "stats.totalDurationSec": FieldValue.increment(Int64(summary.durationSec))
-            ], merge: true)
-
+            try await userRef.updateData([
+              "stats.sessionsCompleted": FieldValue.increment(Int64(1)),
+              "stats.totalHits": FieldValue.increment(Int64(summary.shotCount)),
+              "stats.totalForehands": FieldValue.increment(Int64(summary.forehandCount)),
+              "stats.totalBackhands": FieldValue.increment(Int64(summary.backhandCount)),
+              "stats.totalDurationSec": FieldValue.increment(Int64(summary.durationSec))
+            ])
+            
             print("✅ Saved session + updated stats)")
         } catch {
             print("❌ saveSessionAndIncrementStats error:", error.localizedDescription)
         }
     }
-
+    
     func fetchSessions(participantId: String, limit: Int = 50) async {
         guard FirebaseApp.app() != nil else {
             print("⚠️ Firebase not configured yet")
             return
         }
-
+        
         do {
             let snapshot = try await db.collection("users")
                 .document(participantId)
@@ -86,19 +86,23 @@ final class UserSessionStore: ObservableObject {
                 .order(by: "timestamp", descending: true)
                 .limit(to: limit)
                 .getDocuments()
-
+            
             let parsed: [UserSession] = snapshot.documents.compactMap { doc in
                 let d = doc.data()
-
+                
                 let ts = (d["timestamp"] as? Timestamp)?.dateValue() ?? Date()
                 let shotCount = d["shotCount"] as? Int ?? 0
                 let forehandCount = d["forehandCount"] as? Int ?? 0
                 let backhandCount = d["backhandCount"] as? Int ?? 0
                 let durationSec = d["durationSec"] as? Int ?? 0
                 let fastestSwing = d["fastestSwing"] as? Double ?? 0.0
+                let fhMaxMph = d["fhMaxMph"] as? Double ?? 0
+                let fhAvgMph = d["fhAvgMph"] as? Double ?? 0
+                let bhMaxMph = d["bhMaxMph"] as? Double ?? 0
+                let bhAvgMph = d["bhAvgMph"] as? Double ?? 0
                 let heartRate = d["heartRate"] as? Double ?? 0
                 let csvFileName = d["csvFileName"] as? String
-
+                
                 return UserSession(
                     id: doc.documentID,
                     timestamp: ts,
@@ -107,11 +111,15 @@ final class UserSessionStore: ObservableObject {
                     backhandCount: backhandCount,
                     durationSec: durationSec,
                     fastestSwing: fastestSwing,
+                    fhMaxMph: fhMaxMph,
+                    fhAvgMph: fhAvgMph,
+                    bhMaxMph: bhMaxMph,
+                    bhAvgMph: bhAvgMph,
                     heartRate: heartRate,
                     csvFileName: csvFileName
                 )
             }
-
+            
             self.sessions = parsed
             print("✅ Loaded \(parsed.count) user sessions")
         } catch {
@@ -119,51 +127,92 @@ final class UserSessionStore: ObservableObject {
         }
     }
     
-    func updateFastestSwingForSession(
-        participantId: String,
-        sessionId: String,
-        fastestSwing: Double
-    ) async {
-        guard FirebaseApp.app() != nil else { return }
-        guard fastestSwing > 0 else { return }
-
-        let userRef = db.collection("users").document(participantId)
-        let sessionRef = userRef.collection("sessions").document(sessionId)
-
+    /// ✅ Fetch a single session doc (used by feed/detail views when a post doesn't carry the session payload)
+    func fetchSession(participantId: String, sessionId: String) async -> UserSession? {
+        guard FirebaseApp.app() != nil else {
+            print("⚠️ Firebase not configured yet")
+            return nil
+        }
+        
         do {
-            // 1) Patch session doc
-            try await sessionRef.setData([
-                "fastestSwing": fastestSwing,
-                "updatedAt": Timestamp(date: Date())
-            ], merge: true)
-
-            // 2) Update profile fastest only if higher (transaction-safe)
-            try await db.runTransaction { transaction, errorPointer in
-                do {
-                    let snapshot = try transaction.getDocument(userRef)
-
-                    let stats = snapshot.data()?["stats"] as? [String: Any] ?? [:]
-                    let current = stats["fastestSwing"] as? Double ?? 0.0
-
-                    if fastestSwing > current {
-                        transaction.setData(
-                            ["stats.fastestSwing": fastestSwing],
-                            forDocument: userRef,
-                            merge: true
-                        )
-                    }
-
-                    return nil
-                } catch {
-                    // Tell Firestore the transaction failed
-                    errorPointer?.pointee = error as NSError
-                    return nil
-                }
+            let doc = try await db.collection("users")
+                .document(participantId)
+                .collection("sessions")
+                .document(sessionId)
+                .getDocument()
+            
+            guard let d = doc.data() else {
+                print("⚠️ No session doc data for", participantId, sessionId)
+                return nil
             }
-
-            print("✅ Patched fastestSwing for session:", sessionId)
+            
+            let ts = (d["timestamp"] as? Timestamp)?.dateValue() ?? Date()
+            let shotCount = d["shotCount"] as? Int ?? 0
+            let forehandCount = d["forehandCount"] as? Int ?? 0
+            let backhandCount = d["backhandCount"] as? Int ?? 0
+            let durationSec = d["durationSec"] as? Int ?? 0
+            let fastestSwing = d["fastestSwing"] as? Double ?? 0.0
+            let fhMaxMph = d["fhMaxMph"] as? Double ?? 0
+            let fhAvgMph = d["fhAvgMph"] as? Double ?? 0
+            let bhMaxMph = d["bhMaxMph"] as? Double ?? 0
+            let bhAvgMph = d["bhAvgMph"] as? Double ?? 0
+            let heartRate = d["heartRate"] as? Double ?? 0
+            let csvFileName = d["csvFileName"] as? String
+            
+            return UserSession(
+                id: sessionId,
+                timestamp: ts,
+                shotCount: shotCount,
+                forehandCount: forehandCount,
+                backhandCount: backhandCount,
+                durationSec: durationSec,
+                fastestSwing: fastestSwing,
+                fhMaxMph: fhMaxMph,
+                fhAvgMph: fhAvgMph,
+                bhMaxMph: bhMaxMph,
+                bhAvgMph: bhAvgMph,
+                heartRate: heartRate,
+                csvFileName: csvFileName
+            )
         } catch {
-            print("❌ updateFastestSwingForSession error:", error.localizedDescription)
+            print("❌ fetchSession error:", error.localizedDescription)
+            return nil
         }
     }
 }
+    
+extension UserSessionStore {
+    /// Patch per-hand speeds into an existing session doc.
+    func updateSpeedMetricsForSession(
+        participantId: String,
+        sessionId: String,
+        metrics: SessionSpeedMetrics
+    ) async {
+        guard FirebaseApp.app() != nil else { return }
+
+        let sessionRef = FirebaseManager.shared.db
+            .collection("users")
+            .document(participantId)
+            .collection("sessions")
+            .document(sessionId)
+
+        do {
+            try await sessionRef.setData([
+                "fhMaxMph": metrics.fhMaxMph,
+                "fhAvgMph": metrics.fhAvgMph,
+                "bhMaxMph": metrics.bhMaxMph,
+                "bhAvgMph": metrics.bhAvgMph,
+
+                // keep your existing single fastestSwing aligned
+                "fastestSwing": metrics.overallMaxMph,
+
+                "updatedAt": Timestamp(date: Date())
+            ], merge: true)
+
+            print("✅ Patched speed metrics for session:", sessionId)
+        } catch {
+            print("❌ updateSpeedMetricsForSession error:", error.localizedDescription)
+        }
+    }
+}
+

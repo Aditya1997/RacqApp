@@ -55,7 +55,9 @@ final class UserPostStore: ObservableObject {
         let locationText = data["locationText"] as? String
         let tagged = data["taggedUsernames"] as? [String] ?? []
         let imageURLs = data["imageURLs"] as? [String] ?? []
-
+        let commentCount = data["commentCount"] as? Int ?? 0
+        let lastCommentAt = (data["lastCommentAt"] as? Timestamp)?.dateValue()
+        
         let sessionId = data["sessionId"] as? String
         let shotCount = data["shotCount"] as? Int
         let forehandCount = data["forehandCount"] as? Int
@@ -74,6 +76,8 @@ final class UserPostStore: ObservableObject {
             locationText: locationText,
             taggedUsernames: tagged,
             imageURLs: imageURLs,
+            commentCount: commentCount,
+            lastCommentAt: lastCommentAt,
             sessionId: sessionId,
             shotCount: shotCount,
             forehandCount: forehandCount,

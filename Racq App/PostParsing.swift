@@ -20,6 +20,8 @@ enum PostParsing {
         let locationText = data["locationText"] as? String
         let tagged = data["taggedUsernames"] as? [String] ?? []
         let imageURLs = data["imageURLs"] as? [String] ?? []
+        let commentCount = data["commentCount"] as? Int ?? 0
+        let lastCommentAt = (data["lastCommentAt"] as? Timestamp)?.dateValue()
 
         let sessionId = data["sessionId"] as? String
         let shotCount = data["shotCount"] as? Int
@@ -39,6 +41,8 @@ enum PostParsing {
             locationText: locationText,
             taggedUsernames: tagged,
             imageURLs: imageURLs,
+            commentCount: commentCount,
+            lastCommentAt: lastCommentAt,
             sessionId: sessionId,
             shotCount: shotCount,
             forehandCount: forehandCount,

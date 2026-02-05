@@ -13,6 +13,7 @@ import FirebaseFirestore
 @MainActor
 final class UserProfileStore: ObservableObject {
     @Published var profile: UserProfile?
+    @Published var stats: UserStats = .zero
 
     private var db: Firestore { FirebaseManager.shared.db }
 
@@ -30,7 +31,6 @@ final class UserProfileStore: ObservableObject {
         do {
             let snap = try await ref.getDocument()
             if snap.exists {
-                // Keep displayName fresh
                 try await ref.setData(["displayName": finalName], merge: true)
                 return
             }
@@ -45,7 +45,7 @@ final class UserProfileStore: ObservableObject {
                     "totalForehands": 0,
                     "totalBackhands": 0,
                     "totalDurationSec": 0,
-                    "fastestSwing": 0.00
+                    "fastestSwing": 0.0
                 ]
             ], merge: true)
 
@@ -71,26 +71,52 @@ final class UserProfileStore: ObservableObject {
             let displayName = data["displayName"] as? String ?? "Anonymous"
             let dateJoined = (data["dateJoined"] as? Timestamp)?.dateValue() ?? Date()
 
-            let stats = data["stats"] as? [String: Any] ?? [:]
-            let sessionsCompleted = stats["sessionsCompleted"] as? Int ?? 0
-            let totalHits = stats["totalHits"] as? Int ?? 0
-            let totalForehands = stats["totalForehands"] as? Int ?? 0
-            let totalBackhands = stats["totalBackhands"] as? Int ?? 0
-            let totalDurationSec = stats["totalDurationSec"] as? Int ?? 0
-            let fastestSwing = stats["fastestSwing"] as? Double ?? 0.00
+            self.profile = UserProfile(displayName: displayName, dateJoined: dateJoined)
 
-            self.profile = UserProfile(
-                displayName: displayName,
-                dateJoined: dateJoined,
-                sessionsCompleted: sessionsCompleted,
-                totalHits: totalHits,
-                totalForehands: totalForehands,
-                totalBackhands: totalBackhands,
-                totalDurationSec: totalDurationSec,
-                fastestSwing: fastestSwing
+            // pull stats
+            self.stats = UserStats(
+                sessionsCompleted: readIntStat(data, key: "sessionsCompleted"),
+                totalHits: readIntStat(data, key: "totalHits"),
+                totalForehands: readIntStat(data, key: "totalForehands"),
+                totalBackhands: readIntStat(data, key: "totalBackhands"),
+                totalDurationSec: readIntStat(data, key: "totalDurationSec"),
+                fastestSwing: readDoubleStat(data, key: "fastestSwing")
             )
+
+            print("👤 Loaded stats: sessions=\(stats.sessionsCompleted) hits=\(stats.totalHits)")
         } catch {
             print("❌ fetchProfile error: \(error)")
         }
     }
+
+    // MARK: - Helpers
+
+    private func readIntStat(_ data: [String: Any], key: String) -> Int {
+        // Normal case: nested stats map
+        if let statsMap = data["stats"] as? [String: Any] {
+            if let v = statsMap[key] as? Int { return v }
+            if let v = statsMap[key] as? Int64 { return Int(v) }
+            if let v = statsMap[key] as? Double { return Int(v) }
+        }
+        // Fallback: literal dotted key exists in doc (rare but matches your symptom)
+        if let v = data["stats.\(key)"] as? Int { return v }
+        if let v = data["stats.\(key)"] as? Int64 { return Int(v) }
+        if let v = data["stats.\(key)"] as? Double { return Int(v) }
+
+        return 0
+    }
+
+    private func readDoubleStat(_ data: [String: Any], key: String) -> Double {
+        if let statsMap = data["stats"] as? [String: Any] {
+            if let v = statsMap[key] as? Double { return v }
+            if let v = statsMap[key] as? Int { return Double(v) }
+            if let v = statsMap[key] as? Int64 { return Double(v) }
+        }
+        if let v = data["stats.\(key)"] as? Double { return v }
+        if let v = data["stats.\(key)"] as? Int { return Double(v) }
+        if let v = data["stats.\(key)"] as? Int64 { return Double(v) }
+
+        return 0.0
+    }
 }
+

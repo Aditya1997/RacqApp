@@ -27,13 +27,24 @@ final class PostInteractionsService {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else { return }
 
-        let commentRef = postDocRef(ref).collection("comments").document()
-        try await commentRef.setData([
+        let postRef = postDocRef(ref)
+        let commentRef = postRef.collection("comments").document()
+
+        let batch = db.batch()
+
+        batch.setData([
             "authorId": authorId,
             "authorName": authorName,
             "text": clean,
             "createdAt": Timestamp(date: Date())
-        ], merge: true)
+        ], forDocument: commentRef, merge: true)
+
+        batch.setData([
+            "commentCount": FieldValue.increment(Int64(1)),
+            "lastCommentAt": Timestamp(date: Date())
+        ], forDocument: postRef, merge: true)
+
+        try await batch.commit()
     }
 
     // MARK: - Reactions

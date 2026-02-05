@@ -10,12 +10,20 @@ import Foundation
 struct PlayerGroup: Identifiable {
     let id: String
     let name: String
-    let description: String?
-    let icon: String
-    let updatedAt: Date
-    
-    // Added 1/28/26
+
+    // Text
     let location: String?
+    let tagline: String
+    let description: String
+
+    // Images (Firebase Storage URLs later)
+    let profileImageURL: String?
     let backgroundImageURL: String?
+
+    // Legacy fallback (still used by Community list rows)
+    let icon: String
+
+    // Meta
+    let updatedAt: Date
     let memberCount: Int
 }

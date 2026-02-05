@@ -11,10 +11,7 @@ import WatchConnectivity
 @MainActor
 final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     static let shared = PhoneWCManager()
-
-    @Published var isConnected: Bool = false
-    @Published var userHeight: Double = UserDefaults.standard.double(forKey: "userHeightInInches")
-
+    
     // Summary data for dashboard
     @Published var summaryTimestampISO: String = ""
     @Published var summaryDurationSec: Int = 0
@@ -26,9 +23,11 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
     @Published var summaryFastestSwing: Double = 0
     
     // CSV file received from watch
+    @Published var isConnected: Bool = false
+    @Published var userHeight: Double = UserDefaults.standard.double(forKey: "userHeightInInches")
     @Published var csvURL: URL?
     @Published var summaryCSVURL: URL?
-
+     
     private var lastAppliedSessionTimestampISO: String = ""
 
     private override init() {
@@ -137,7 +136,8 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
                     displayName: name,
                     summary: summary,
                     csvURL: csvURL,
-                    timestampISO: ts)
+                    timestampISO: ts
+                )
             }
         }
     }
@@ -149,13 +149,11 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
         let fm = FileManager.default
         let docs = fm.urls(for: .documentDirectory, in: .userDomainMask).first!
 
-        // Determine what kind of file the watch sent using the ORIGINAL name
         let incomingName = file.fileURL.lastPathComponent
         let isSummary = incomingName.localizedCaseInsensitiveContains("SwingSummaries")
             || incomingName.localizedCaseInsensitiveContains("swing_summaries")
             || incomingName.localizedCaseInsensitiveContains("summary")
 
-        // Save locally with a unique name, but keep the "summary" hint so your debugging is easy
         let uniqueName: String = {
             let tag = isSummary ? "SwingSummaries" : "SessionCSV"
             return "\(tag)_\(UUID().uuidString).csv"
@@ -164,16 +162,13 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
         let dest = docs.appendingPathComponent(uniqueName)
 
         do {
-            // 1) Remove any existing file at dest
             if fm.fileExists(atPath: dest.path) {
                 try fm.removeItem(at: dest)
             }
 
-            // 2) Copy FIRST so the file exists on disk
             try fm.copyItem(at: file.fileURL, to: dest)
             print("📄 CSV copied to:", dest.lastPathComponent, "from:", incomingName, "isSummary:", isSummary)
 
-            // 3) Publish the correct URL (this triggers your HomeView/RecordView onChange)
             DispatchQueue.main.async {
                 if isSummary {
                     self.summaryCSVURL = dest
@@ -184,34 +179,42 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
                 }
             }
 
-            // 4) Now parse + compute speeds from the REAL file
-            // Use the summary file for swing speeds (that’s what HomeView/RecordView uses)
+            // ✅ If this is the SwingSummaries CSV, compute + patch per-hand metrics.
             if isSummary {
                 let swings = loadSwingSummaryCSV(from: dest)
                 let height = UserDefaults.standard.double(forKey: "userHeightInInches")
 
                 let fhMax = SwingMath.maxFHSpeed(swings: swings, height: height)
+                let fhAvg = SwingMath.avgFHSpeed(swings: swings, height: height)
                 let bhMax = SwingMath.maxBHSpeed(swings: swings, height: height)
-                let fastest = max(fhMax, bhMax)
+                let bhAvg = SwingMath.avgBHSpeed(swings: swings, height: height)
+
+                let metrics = SessionSpeedMetrics(
+                    fhMaxMph: fhMax,
+                    fhAvgMph: fhAvg,
+                    bhMaxMph: bhMax,
+                    bhAvgMph: bhAvg
+                )
 
                 DispatchQueue.main.async {
-                    self.summaryFastestSwing = fastest
+                    self.summaryFastestSwing = metrics.overallMaxMph
                 }
 
-                print("🎾 Speeds computed. swings=\(swings.count) fhMax=\(fhMax) bhMax=\(bhMax) fastest=\(fastest)")
+                print("🎾 Speeds computed. swings=\(swings.count) fhMax=\(fhMax) fhAvg=\(fhAvg) bhMax=\(bhMax) bhAvg=\(bhAvg)")
 
-                // Patch Firestore fastest swing (only if we have a session id)
+                // Patch Firestore metrics (needs session id)
                 Task {
                     let participantId = UserIdentity.participantId()
                     let sessionId = self.lastAppliedSessionTimestampISO
+
                     if !sessionId.isEmpty {
-                        await UserSessionStore().updateFastestSwingForSession(
+                        await UserSessionStore().updateSpeedMetricsForSession(
                             participantId: participantId,
                             sessionId: sessionId,
-                            fastestSwing: fastest
+                            metrics: metrics
                         )
                     } else {
-                        print("⚠️ No sessionId available to patch fastest swing")
+                        print("⚠️ No sessionId available to patch speed metrics")
                     }
                 }
             }
