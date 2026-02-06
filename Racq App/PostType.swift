@@ -38,4 +38,9 @@ struct AppPost: Identifiable {
     let durationSec: Int?
     let heartRate: Double?
     let fastestSwing: Double?
+    let fhAvgMph: Double?
+    let fhMaxMph: Double?
+    let bhAvgMph: Double?
+    let bhMaxMph: Double?
+
 }

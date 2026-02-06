@@ -14,4 +14,4 @@
 // 1.7.9: New files: PostContextRef, post DetailView, PostInteractionModels, PostInteractionsService, PostInteractionsStore, PostInteractionsView, ReactionsBarView, FeedPostRow
 // 1.7.10 2/4/26 - Re-order groups and challenges, groups have a profile picture, change plus at top of community to createnewgroupview, challenges streamlined, clicking sessions in profile/groups should show the whole original session card, attempted comment bubble added and shows unread, cleaned up Firebase user profiles
 // 1.7.10 New files: ChallengeDetailView, CreateNewGroupView, SessionSpeedMetrics,CommentBubbleBadge, NewCommentsTracker, UserStats
-
+// 1.7.11 2/5/26 - Cleaned up cardviews to look nicer, corrected issue with posts getting wrong numbers vs. record view. Comment bubble badge modified

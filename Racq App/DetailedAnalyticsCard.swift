@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+let cardBG = Color(red: 0.05, green: 0.12, blue: 0.28)
+
 struct DetailedAnalyticsCard: View {
     let swings: [SwingSummaryCSV]
     let userHeightInInches: Double
@@ -39,7 +41,10 @@ struct DetailedAnalyticsCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity)
-        .background(Color(UIColor.secondarySystemBackground))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(cardBG)
+        )
         .cornerRadius(16)
     }
 

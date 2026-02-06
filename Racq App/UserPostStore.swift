@@ -65,6 +65,10 @@ final class UserPostStore: ObservableObject {
         let durationSec = data["durationSec"] as? Int
         let heartRate = data["heartRate"] as? Double
         let fastestSwing = data["fastestSwing"] as? Double
+        let fhAvgMph = data["fhAvgMph"] as? Double
+        let fhMaxMph = data["fhMaxMph"] as? Double
+        let bhAvgMph = data["bhAvgMph"] as? Double
+        let bhMaxMph = data["bhMaxMph"] as? Double
 
         return AppPost(
             id: docId,
@@ -84,7 +88,11 @@ final class UserPostStore: ObservableObject {
             backhandCount: backhandCount,
             durationSec: durationSec,
             heartRate: heartRate,
-            fastestSwing: fastestSwing
+            fastestSwing: fastestSwing,
+            fhAvgMph: fhAvgMph,
+            fhMaxMph: fhMaxMph,
+            bhAvgMph: bhAvgMph,
+            bhMaxMph: bhMaxMph
         )
     }
 }

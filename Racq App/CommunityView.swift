@@ -97,7 +97,7 @@ struct CommunityView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.blue)
+                    .background(Color.orange)
                     .cornerRadius(8)
             }
             .buttonStyle(.plain)

@@ -23,7 +23,7 @@ struct SessionCardView: View {
     let fallbackFastestSwing: Double?
 
     // color variables
-    private let cardBG = Color(red: 0.20, green: 0.6, blue: 0.7).opacity(0.4)
+    private let cardBG = Color(red: 0.20, green: 0.7, blue: 0.7).opacity(0.4)
     private let outerGradient = LinearGradient(
         colors: [
             Color(red: 0.22, green: 0.56, blue: 0.80).opacity(0.22),
@@ -62,7 +62,6 @@ struct SessionCardView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
                 .multilineTextAlignment(.center)
                 .padding(.top, 2)
-
             Image("tennis_court")
                 .resizable()
                 .scaledToFill()
@@ -97,7 +96,7 @@ struct SessionCardView: View {
             .shadow(color: .black.opacity(0.08), radius: 8, x: 0, y: 3)
 
             // MARK: - Summary Blocks
-            HStack(spacing: 16) {
+            HStack(spacing: 10) {
                 SummaryBlock(
                     title: "Duration",
                     value: format(durationSec),
@@ -115,7 +114,7 @@ struct SessionCardView: View {
                 )
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 10)
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(
@@ -129,7 +128,7 @@ struct SessionCardView: View {
 
     private var avgHRText: String {
         let bpm = Int(avgHR.rounded())
-        return bpm > 0 ? "\(bpm) bpm" : "--"
+        return bpm > 0 ? "\(bpm)" : "--"
     }
 
     private func format(_ sec: Int) -> String {

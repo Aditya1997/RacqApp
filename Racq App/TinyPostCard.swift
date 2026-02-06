@@ -34,7 +34,7 @@ struct TinyPostCard: View {
         }
     }
 
-    // MARK: - FEED CARD
+    // MARK: - FEED CARD (UNUSED IN FAVOR OF SessionCardView)
 
     private var feedCard: some View {
         let content = VStack(alignment: .leading, spacing: 8) {

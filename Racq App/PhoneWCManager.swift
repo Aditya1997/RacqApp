@@ -184,23 +184,23 @@ final class PhoneWCManager: NSObject, ObservableObject, WCSessionDelegate {
                 let swings = loadSwingSummaryCSV(from: dest)
                 let height = UserDefaults.standard.double(forKey: "userHeightInInches")
 
-                let fhMax = SwingMath.maxFHSpeed(swings: swings, height: height)
-                let fhAvg = SwingMath.avgFHSpeed(swings: swings, height: height)
-                let bhMax = SwingMath.maxBHSpeed(swings: swings, height: height)
-                let bhAvg = SwingMath.avgBHSpeed(swings: swings, height: height)
+                let fhMaxMph = SwingMath.maxFHSpeed(swings: swings, height: height)
+                let fhAvgMph = SwingMath.avgFHSpeed(swings: swings, height: height)
+                let bhMaxMph = SwingMath.maxBHSpeed(swings: swings, height: height)
+                let bhAvgMph = SwingMath.avgBHSpeed(swings: swings, height: height)
 
                 let metrics = SessionSpeedMetrics(
-                    fhMaxMph: fhMax,
-                    fhAvgMph: fhAvg,
-                    bhMaxMph: bhMax,
-                    bhAvgMph: bhAvg
+                    fhMaxMph: fhMaxMph,
+                    fhAvgMph: fhAvgMph,
+                    bhMaxMph: bhMaxMph,
+                    bhAvgMph: bhAvgMph
                 )
 
                 DispatchQueue.main.async {
                     self.summaryFastestSwing = metrics.overallMaxMph
                 }
 
-                print("🎾 Speeds computed. swings=\(swings.count) fhMax=\(fhMax) fhAvg=\(fhAvg) bhMax=\(bhMax) bhAvg=\(bhAvg)")
+                print("🎾 Speeds computed. swings=\(swings.count) fhMax=\(fhMaxMph) fhAvg=\(fhAvgMph) bhMax=\(bhMaxMph) bhAvg=\(bhAvgMph)")
 
                 // Patch Firestore metrics (needs session id)
                 Task {

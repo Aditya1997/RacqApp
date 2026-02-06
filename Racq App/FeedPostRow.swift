@@ -48,7 +48,10 @@ struct FeedPostRow: View {
             }
         }
         .padding(12)
-        .background(Color.white.opacity(0.05))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(cardBG)
+        )
         .cornerRadius(12)
     }
 }
