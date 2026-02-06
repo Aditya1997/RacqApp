@@ -5,7 +5,6 @@
 //  Created by Deets on 2/2/26.
 //
 
-
 import SwiftUI
 
 struct FeedPostRow: View {
@@ -16,21 +15,43 @@ struct FeedPostRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button(action: onOpen) {
-                TinyPostCard(
-                    post: post,
-                    context: .group,
-                    variant: .feed,
-                    embeddedInContainer: true
-                )
+                Group {
+                    if post.type == .session {
+                        SessionPostCard(
+                            post: post,
+                            context: .group,
+                            embeddedInContainer: true
+                        )
+                    } else {
+                        TinyPostCard(
+                            post: post,
+                            context: .group,
+                            variant: .feed,
+                            embeddedInContainer: true
+                        )
+                    }
+                }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-
-            ReactionsBarView(postRef: ref)
+            HStack {
+                ReactionsBarView(postRef: ref)
+                Spacer()
+                CommentBubbleBadge(
+                    count: post.commentCount,
+                    isNew: NewCommentsTracker.shared.hasNewComments(
+                        postKey: ref.stableKey,
+                        lastCommentAt: post.lastCommentAt
+                    )
+                )
+            }
         }
         .padding(12)
-        .background(Color.white.opacity(0.05))
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(cardBG)
+        )
         .cornerRadius(12)
     }
 }

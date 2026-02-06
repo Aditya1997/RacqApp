@@ -55,7 +55,9 @@ final class UserPostStore: ObservableObject {
         let locationText = data["locationText"] as? String
         let tagged = data["taggedUsernames"] as? [String] ?? []
         let imageURLs = data["imageURLs"] as? [String] ?? []
-
+        let commentCount = data["commentCount"] as? Int ?? 0
+        let lastCommentAt = (data["lastCommentAt"] as? Timestamp)?.dateValue()
+        
         let sessionId = data["sessionId"] as? String
         let shotCount = data["shotCount"] as? Int
         let forehandCount = data["forehandCount"] as? Int
@@ -63,6 +65,10 @@ final class UserPostStore: ObservableObject {
         let durationSec = data["durationSec"] as? Int
         let heartRate = data["heartRate"] as? Double
         let fastestSwing = data["fastestSwing"] as? Double
+        let fhAvgMph = data["fhAvgMph"] as? Double
+        let fhMaxMph = data["fhMaxMph"] as? Double
+        let bhAvgMph = data["bhAvgMph"] as? Double
+        let bhMaxMph = data["bhMaxMph"] as? Double
 
         return AppPost(
             id: docId,
@@ -74,13 +80,19 @@ final class UserPostStore: ObservableObject {
             locationText: locationText,
             taggedUsernames: tagged,
             imageURLs: imageURLs,
+            commentCount: commentCount,
+            lastCommentAt: lastCommentAt,
             sessionId: sessionId,
             shotCount: shotCount,
             forehandCount: forehandCount,
             backhandCount: backhandCount,
             durationSec: durationSec,
             heartRate: heartRate,
-            fastestSwing: fastestSwing
+            fastestSwing: fastestSwing,
+            fhAvgMph: fhAvgMph,
+            fhMaxMph: fhMaxMph,
+            bhAvgMph: bhAvgMph,
+            bhMaxMph: bhMaxMph
         )
     }
 }

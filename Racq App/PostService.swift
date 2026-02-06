@@ -95,7 +95,11 @@ final class PostService {
             "backhandCount": session.backhandCount,
             "durationSec": session.durationSec,
             "heartRate": session.heartRate,
-            "fastestSwing": session.fastestSwing
+            "fastestSwing": session.fastestSwing,
+            "fhAvgMph": session.fhAvgMph,
+            "fhMaxMph": session.fhMaxMph,
+            "bhAvgMph": session.bhAvgMph,
+            "bhMaxMph": session.bhMaxMph
         ]
 
         // 1) Save to profile

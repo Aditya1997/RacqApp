@@ -1,19 +1,10 @@
-//
+//  UNUSED
 //  SessionView.swift
 //  RacqApp
 //  Do we need a detailed session view
 
 import SwiftUI
 import WatchConnectivity
-
-struct SwingSummaryCSV: Identifiable {
-    let id = UUID()
-    let timestamp: String
-    let type: String
-    let peak: Double
-    let peakGyro: Double
-    let duration: Double
-}
 
 struct SessionView: View {
     @ObservedObject var wc = PhoneWCManager.shared
@@ -32,7 +23,6 @@ struct SessionView: View {
             Divider()
             // PLAYER HEIGHT SECTION (always visible)
             PlayerHeightView()
-
             Divider()
             // SUMMARY (shown automatically when data arrives)
             if wc.summaryTimestampISO.isEmpty {
@@ -45,7 +35,7 @@ struct SessionView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                Text("No need for detailed card.")
+                Text("No need for detailed card. Page is UNUSED")
 //                DetailedSummaryCard(
 //                    shots: wc.summaryShotCount,
 //                    durationSec: wc.summaryDurationSec,

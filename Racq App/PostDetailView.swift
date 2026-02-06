@@ -5,7 +5,6 @@
 //  Created by Deets on 1/30/26.
 //
 
-
 import SwiftUI
 
 struct PostDetailView: View {
@@ -15,16 +14,27 @@ struct PostDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                // reuse your existing card UI for the main body
-                TinyPostCard(post: post, context: refContext(ref))
+                if post.type == .session {
+                    SessionPostCard(post: post, context: refContext(ref))
+                } else {
+                    TinyPostCard(post: post, context: refContext(ref))
+                }
+
                 Divider().padding(.vertical, 4)
-                // comments + reactions live here
+
                 PostInteractionsView(postRef: ref)
             }
             .padding()
         }
         .navigationTitle("Post")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            NewCommentsTracker.shared.markSeen(
+                postKey: ref.stableKey,
+                at: post.lastCommentAt ?? Date()
+            )
+        }
+
     }
 
     private func refContext(_ ref: PostContextRef) -> TinyPostCard.Context {

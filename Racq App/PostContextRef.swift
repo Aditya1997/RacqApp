@@ -20,3 +20,15 @@ enum PostContextRef: Hashable, Identifiable {
 
     var id: String { postPath }
 }
+
+extension PostContextRef {
+    var stableKey: String {
+        switch self {
+        case .group(let groupId, let postId):
+            return "\(groupId)_\(postId)"
+        case .profile(_, let postId):
+            return postId
+        }
+    }
+}
+

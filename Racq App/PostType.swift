@@ -26,6 +26,10 @@ struct AppPost: Identifiable {
     let taggedUsernames: [String]
     let imageURLs: [String]
 
+    // comments
+    let commentCount: Int
+    let lastCommentAt: Date?
+    
     // Session payload (optional)
     let sessionId: String?
     let shotCount: Int?
@@ -34,4 +38,9 @@ struct AppPost: Identifiable {
     let durationSec: Int?
     let heartRate: Double?
     let fastestSwing: Double?
+    let fhAvgMph: Double?
+    let fhMaxMph: Double?
+    let bhAvgMph: Double?
+    let bhMaxMph: Double?
+
 }
