@@ -141,7 +141,7 @@ struct SessionView: View {
         }
     }
     
-    private func shareCSV(_ url: URL) {
+    public func shareCSV(_ url: URL) {
         let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
         UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }

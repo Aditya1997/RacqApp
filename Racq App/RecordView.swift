@@ -64,6 +64,14 @@ struct RecordView: View {
                            Label("Post", systemImage: "square.and.arrow.up")
                                .frame(maxWidth: .infinity)
                         }
+                        if let url = wc.csvURL {
+                            Button {
+                                shareCSV(url)
+                            } label: {
+                                Label("Share CSV", systemImage: "square.and.arrow.up")
+                            }
+                        }
+                        
                         // Your detailed analytics below, as requested
                         DetailedAnalyticsCard(
                             swings: swings,
@@ -222,3 +230,10 @@ struct PlayerHeightView: View {
     }
 }
 
+public func shareCSV(_ url: URL) {
+    let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .first?.keyWindow?.rootViewController?
+        .present(vc, animated: true)
+}
